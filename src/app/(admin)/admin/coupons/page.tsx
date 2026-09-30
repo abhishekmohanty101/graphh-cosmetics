@@ -14,8 +14,22 @@ import {
   Truck,
 } from 'lucide-react'
 
+interface Coupon {
+  id: string
+  code: string
+  type: string
+  value: number
+  minPurchase: number | null
+  maxDiscount: number | null
+  usageLimit: number | null
+  usedCount: number
+  validFrom: string
+  validUntil: string
+  isActive: boolean
+}
+
 // Mock coupons data
-const mockCoupons = [
+const mockCoupons: Coupon[] = [
   {
     id: '1',
     code: 'WELCOME10',
