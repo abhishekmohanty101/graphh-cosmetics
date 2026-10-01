@@ -91,35 +91,19 @@ function LoginContent() {
     setError('')
 
     try {
-      const res = await fetch('/api/v1/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          otp: formData.otp,
-          type: 'login',
-        }),
+      // Sign in directly with NextAuth - it will verify the OTP
+      const result = await signIn('credentials', {
+        email: formData.email,
+        otp: formData.otp,
+        isOTPLogin: 'true',
+        redirect: false,
       })
 
-      const data = await res.json()
-
-      if (data.success) {
-        // Sign in with NextAuth using the verified email
-        const result = await signIn('credentials', {
-          email: formData.email,
-          otp: formData.otp,
-          isOTPLogin: 'true',
-          redirect: false,
-        })
-
-        if (result?.error) {
-          setError('Login failed. Please try again.')
-        } else {
-          router.push(callbackUrl)
-          router.refresh()
-        }
+      if (result?.error) {
+        setError('Invalid or expired OTP. Please try again.')
       } else {
-        setError(data.error || 'Invalid OTP')
+        router.push(callbackUrl)
+        router.refresh()
       }
     } catch (err) {
       setError('Something went wrong. Please try again.')
