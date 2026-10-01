@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import {
   LayoutDashboard,
@@ -20,6 +20,7 @@ import {
   X,
   Bell,
   Search,
+  Shield,
 } from 'lucide-react'
 
 const navigation = [
@@ -39,9 +40,85 @@ export default function AdminLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const { data: session } = useSession()
+  const router = useRouter()
+  const { data: session, status } = useSession()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  // Check authentication and admin role
+  useEffect(() => {
+    if (status === 'loading') return
+    
+    if (!session) {
+      router.push('/login?callbackUrl=/admin')
+      return
+    }
+
+    // Check if user has admin role (ADMIN or SUPER_ADMIN)
+    const userRole = (session.user as any)?.role
+    if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
+      router.push('/unauthorized')
+    }
+  }, [session, status, router])
+
+  // Show loading while checking auth
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show access denied if not authenticated
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
+          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
+          <p className="text-gray-600 mb-6">You must be logged in to access the admin panel.</p>
+          <Link
+            href="/login?callbackUrl=/admin"
+            className="inline-block px-6 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition"
+          >
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Check admin role (ADMIN or SUPER_ADMIN)
+  const userRole = (session.user as any)?.role
+  if (userRole !== 'ADMIN' && userRole !== 'SUPER_ADMIN') {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
+          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Unauthorized</h1>
+          <p className="text-gray-600 mb-6">You don't have permission to access the admin panel. Admin role required.</p>
+          <div className="space-x-4">
+            <Link
+              href="/"
+              className="inline-block px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
+            >
+              Go Home
+            </Link>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="inline-block px-6 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">

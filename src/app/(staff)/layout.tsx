@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import {
   LayoutDashboard,
@@ -15,6 +15,7 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  Shield,
 } from 'lucide-react'
 
 const navigation = [
@@ -30,9 +31,87 @@ export default function StaffLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const { data: session } = useSession()
+  const router = useRouter()
+  const { data: session, status } = useSession()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  // Check authentication and staff/admin role
+  useEffect(() => {
+    if (status === 'loading') return
+    
+    if (!session) {
+      router.push('/login?callbackUrl=/staff')
+      return
+    }
+
+    // Check if user has staff role (any employee role or admin)
+    const userRole = (session.user as any)?.role
+    const staffRoles = ['EMPLOYEE', 'ORDER_MANAGER', 'PRODUCT_MANAGER', 'SUPPORT_AGENT', 'ADMIN', 'SUPER_ADMIN']
+    if (!staffRoles.includes(userRole)) {
+      router.push('/unauthorized')
+    }
+  }, [session, status, router])
+
+  // Show loading while checking auth
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show access denied if not authenticated
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
+          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
+          <p className="text-gray-600 mb-6">You must be logged in to access the staff portal.</p>
+          <Link
+            href="/login?callbackUrl=/staff"
+            className="inline-block px-6 py-3 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition"
+          >
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Check staff role
+  const userRole = (session.user as any)?.role
+  const staffRoles = ['EMPLOYEE', 'ORDER_MANAGER', 'PRODUCT_MANAGER', 'SUPPORT_AGENT', 'ADMIN', 'SUPER_ADMIN']
+  if (!staffRoles.includes(userRole)) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center bg-white p-8 rounded-lg shadow-lg max-w-md">
+          <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Unauthorized</h1>
+          <p className="text-gray-600 mb-6">You don't have permission to access the staff portal. Staff or Admin role required.</p>
+          <div className="space-x-4">
+            <Link
+              href="/"
+              className="inline-block px-6 py-3 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition"
+            >
+              Go Home
+            </Link>
+            <button
+              onClick={() => signOut({ callbackUrl: '/login' })}
+              className="inline-block px-6 py-3 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -155,12 +234,14 @@ export default function StaffLayout({
                 <Bell className="w-5 h-5 text-gray-600" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
               </button>
-              <Link
-                href="/admin"
-                className="text-sm text-gray-600 hover:text-gray-900"
-              >
-                Admin Panel →
-              </Link>
+              {userRole === 'ADMIN' && (
+                <Link
+                  href="/admin"
+                  className="text-sm text-gray-600 hover:text-gray-900"
+                >
+                  Admin Panel →
+                </Link>
+              )}
             </div>
           </div>
         </header>
