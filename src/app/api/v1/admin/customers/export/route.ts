@@ -24,11 +24,9 @@ export async function GET(request: NextRequest) {
         name: true,
         email: true,
         phone: true,
-        isActive: true,
-        emailVerified: true,
-        phoneVerified: true,
+        isBlocked: true,
+        isVerified: true,
         createdAt: true,
-        lastLoginAt: true,
         _count: {
           select: { orders: true },
         },
@@ -42,7 +40,7 @@ export async function GET(request: NextRequest) {
     const customersWithStats = customers.map((c) => ({
       ...c,
       ordersCount: c._count.orders,
-      totalSpent: c.orders.reduce((sum, o) => sum + o.total, 0),
+      totalSpent: c.orders.reduce((sum, o) => sum + Number(o.total), 0),
     }))
 
     if (format === 'csv') {
@@ -57,7 +55,6 @@ export async function GET(request: NextRequest) {
         'Orders Count',
         'Total Spent',
         'Registered At',
-        'Last Login',
       ]
 
       const rows = customersWithStats.map((c) => [
@@ -65,13 +62,11 @@ export async function GET(request: NextRequest) {
         `"${c.name || ''}"`,
         c.email,
         c.phone || '',
-        c.isActive ? 'Yes' : 'No',
-        c.emailVerified ? 'Yes' : 'No',
-        c.phoneVerified ? 'Yes' : 'No',
+        c.isBlocked ? 'Blocked' : 'Active',
+        c.isVerified ? 'Yes' : 'No',
         c.ordersCount,
         c.totalSpent,
         c.createdAt.toISOString(),
-        c.lastLoginAt?.toISOString() || '',
       ])
 
       const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
@@ -91,13 +86,11 @@ export async function GET(request: NextRequest) {
         name: c.name,
         email: c.email,
         phone: c.phone,
-        isActive: c.isActive,
-        emailVerified: c.emailVerified,
-        phoneVerified: c.phoneVerified,
+        isBlocked: c.isBlocked,
+        isVerified: c.isVerified,
         ordersCount: c.ordersCount,
         totalSpent: c.totalSpent,
         createdAt: c.createdAt,
-        lastLoginAt: c.lastLoginAt,
       })),
       total: customersWithStats.length,
       exportedAt: new Date().toISOString(),
