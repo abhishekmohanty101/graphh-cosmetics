@@ -1,81 +1,90 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import Image from 'next/image'
 import {
   ArrowLeft,
   Save,
-  Upload,
   Trash2,
   Plus,
   X,
-  Tag,
   Package,
-  DollarSign,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  GripVertical,
 } from 'lucide-react'
 
 interface Product {
   id: string
   name: string
   slug: string
-  description: string
+  description: string | null
+  shortDesc: string | null
   price: number
-  compareAtPrice: number | null
-  sku: string
+  comparePrice: number | null
+  costPrice: number | null
+  sku: string | null
+  barcode: string | null
   inventory: number
+  lowStockAlert: number
   categoryId: string
-  images: { url: string; alt: string }[]
+  category: { id: string; name: string } | null
+  images: string[]
+  tags: string[]
+  ingredients: string | null
+  howToUse: string | null
+  benefits: string[]
+  metaTitle: string | null
+  metaDesc: string | null
   isActive: boolean
   isFeatured: boolean
-  tags: string[]
-  variants: {
-    id: string
-    name: string
-    sku: string
-    price: number
-    inventory: number
-  }[]
+  isNewArrival: boolean
+  hasVariants: boolean
+  variants: any[]
 }
 
 interface Category {
   id: string
   name: string
-  slug: string
 }
 
-export default function EditProductPage({ params }: { params: { id: string } }) {
+export default function EditProductPage() {
+  const params = useParams()
   const router = useRouter()
+  const productId = params.id as string
+
+  const [product, setProduct] = useState<Product | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [categories, setCategories] = useState<Category[]>([])
-  const [product, setProduct] = useState<Product | null>(null)
+  const [success, setSuccess] = useState('')
   const [newTag, setNewTag] = useState('')
-  const [newVariant, setNewVariant] = useState({
-    name: '',
-    sku: '',
-    price: '',
-    inventory: '',
-  })
+  const [newBenefit, setNewBenefit] = useState('')
 
   useEffect(() => {
     fetchProduct()
     fetchCategories()
-  }, [params.id])
+  }, [productId])
 
   const fetchProduct = async () => {
     try {
-      const res = await fetch(`/api/v1/admin/products/${params.id}`)
+      const res = await fetch(`/api/v1/admin/products/${productId}`)
       const data = await res.json()
       if (data.success) {
-        setProduct(data.data.product)
+        setProduct({
+          ...data.data.product,
+          price: Number(data.data.product.price),
+          comparePrice: data.data.product.comparePrice ? Number(data.data.product.comparePrice) : null,
+          costPrice: data.data.product.costPrice ? Number(data.data.product.costPrice) : null,
+        })
       } else {
         setError('Product not found')
       }
     } catch (err) {
-      setError('Failed to load product')
+      setError('Failed to fetch product')
     } finally {
       setLoading(false)
     }
@@ -83,88 +92,111 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/v1/admin/categories?limit=100')
+      const res = await fetch('/api/v1/admin/categories')
       const data = await res.json()
-      if (data.success) {
-        setCategories(data.data.categories)
-      }
+      if (data.success) setCategories(data.data.categories)
     } catch (err) {
       console.error('Failed to fetch categories')
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!product) return
-
-    setSaving(true)
-    setError('')
-
-    try {
-      const res = await fetch(`/api/v1/admin/products/${params.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(product),
-      })
-
-      const data = await res.json()
-      if (data.success) {
-        router.push('/admin/products')
-      } else {
-        setError(data.error || 'Failed to update product')
-      }
-    } catch (err) {
-      setError('Something went wrong')
-    } finally {
-      setSaving(false)
-    }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
+    const checked = (e.target as HTMLInputElement).checked
+    setProduct(prev => prev ? { ...prev, [name]: type === 'checkbox' ? checked : value } : null)
   }
 
   const addTag = () => {
-    if (newTag && product && !product.tags.includes(newTag)) {
-      setProduct({ ...product, tags: [...product.tags, newTag] })
+    if (newTag.trim() && product && !product.tags.includes(newTag.trim())) {
+      setProduct({ ...product, tags: [...product.tags, newTag.trim()] })
       setNewTag('')
     }
   }
 
   const removeTag = (tag: string) => {
-    if (product) {
-      setProduct({ ...product, tags: product.tags.filter((t) => t !== tag) })
+    if (product) setProduct({ ...product, tags: product.tags.filter(t => t !== tag) })
+  }
+
+  const addBenefit = () => {
+    if (newBenefit.trim() && product && !product.benefits.includes(newBenefit.trim())) {
+      setProduct({ ...product, benefits: [...product.benefits, newBenefit.trim()] })
+      setNewBenefit('')
     }
   }
 
-  const addVariant = () => {
-    if (newVariant.name && newVariant.sku && product) {
-      setProduct({
-        ...product,
-        variants: [
-          ...product.variants,
-          {
-            id: `temp-${Date.now()}`,
-            name: newVariant.name,
-            sku: newVariant.sku,
-            price: parseFloat(newVariant.price) || product.price,
-            inventory: parseInt(newVariant.inventory) || 0,
-          },
-        ],
+  const removeBenefit = (benefit: string) => {
+    if (product) setProduct({ ...product, benefits: product.benefits.filter(b => b !== benefit) })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!product) return
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`/api/v1/admin/products/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: product.name,
+          slug: product.slug,
+          description: product.description,
+          shortDesc: product.shortDesc,
+          price: product.price,
+          comparePrice: product.comparePrice,
+          costPrice: product.costPrice,
+          sku: product.sku,
+          barcode: product.barcode,
+          inventory: product.inventory,
+          lowStockAlert: product.lowStockAlert,
+          categoryId: product.categoryId,
+          images: product.images,
+          tags: product.tags,
+          ingredients: product.ingredients,
+          howToUse: product.howToUse,
+          benefits: product.benefits,
+          metaTitle: product.metaTitle,
+          metaDesc: product.metaDesc,
+          isActive: product.isActive,
+          isFeatured: product.isFeatured,
+          isNewArrival: product.isNewArrival,
+        }),
       })
-      setNewVariant({ name: '', sku: '', price: '', inventory: '' })
+      const data = await res.json()
+      if (data.success) {
+        setSuccess('Product updated successfully')
+        setTimeout(() => setSuccess(''), 3000)
+      } else {
+        setError(data.error || 'Failed to update product')
+      }
+    } catch (err) {
+      setError('Failed to update product')
+    } finally {
+      setSaving(false)
     }
   }
 
-  const removeVariant = (id: string) => {
-    if (product) {
-      setProduct({
-        ...product,
-        variants: product.variants.filter((v) => v.id !== id),
-      })
+  const deleteProduct = async () => {
+    if (!confirm('Are you sure you want to delete this product?')) return
+    try {
+      const res = await fetch(`/api/v1/admin/products/${productId}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (data.success) {
+        router.push('/admin/products')
+      } else {
+        setError(data.error || 'Failed to delete product')
+      }
+    } catch (err) {
+      setError('Failed to delete product')
     }
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-pink-500" />
       </div>
     )
   }
@@ -172,9 +204,10 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
   if (!product) {
     return (
       <div className="text-center py-12">
-        <h2 className="text-xl font-semibold mb-2">Product not found</h2>
-        <Link href="/admin/products" className="text-pink-600 hover:text-pink-700">
-          Back to products
+        <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500">Product not found</p>
+        <Link href="/admin/products" className="text-pink-600 hover:underline mt-2 inline-block">
+          Back to Products
         </Link>
       </div>
     )
@@ -185,250 +218,236 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Link
-            href="/admin/products"
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
-          >
+          <Link href="/admin/products" className="p-2 hover:bg-gray-100 rounded-lg">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">Edit Product</h1>
-            <p className="text-gray-600">{product.name}</p>
+            <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
+            <p className="text-gray-500">{product.name}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
           <button
-            type="button"
-            onClick={() => router.push('/admin/products')}
-            className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition"
+            onClick={deleteProduct}
+            className="px-4 py-2 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 flex items-center gap-2"
           >
-            Cancel
+            <Trash2 className="w-4 h-4" />
+            Delete
           </button>
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 flex items-center gap-2"
           >
-            <Save className="w-4 h-4" />
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Save Changes
           </button>
         </div>
       </div>
 
+      {/* Alerts */}
       {error && (
-        <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-lg">{error}</div>
+        <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" />
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-6 bg-green-50 text-green-600 p-4 rounded-lg flex items-center gap-2">
+          <CheckCircle className="w-5 h-5" />
+          {success}
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Main Info */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Product Information</h2>
+            {/* Basic Info */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-lg font-semibold mb-4">Basic Information</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Name</label>
+                  <label className="block text-sm font-medium mb-1">Product Name *</label>
                   <input
                     type="text"
-                    required
+                    name="name"
                     value={product.name}
-                    onChange={(e) => setProduct({ ...product, name: e.target.value })}
-                    className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-pink-500"
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium mb-2">Slug</label>
+                  <label className="block text-sm font-medium mb-1">Slug *</label>
                   <input
                     type="text"
-                    required
+                    name="slug"
                     value={product.slug}
-                    onChange={(e) => setProduct({ ...product, slug: e.target.value })}
-                    className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-pink-500"
+                    onChange={handleChange}
+                    required
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium mb-2">Description</label>
+                  <label className="block text-sm font-medium mb-1">Short Description</label>
+                  <input
+                    type="text"
+                    name="shortDesc"
+                    value={product.shortDesc || ''}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Full Description</label>
                   <textarea
+                    name="description"
+                    value={product.description || ''}
+                    onChange={handleChange}
                     rows={4}
-                    value={product.description}
-                    onChange={(e) => setProduct({ ...product, description: e.target.value })}
-                    className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-pink-500 resize-none"
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Category</label>
-                  <select
-                    value={product.categoryId}
-                    onChange={(e) => setProduct({ ...product, categoryId: e.target.value })}
-                    className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-pink-500"
-                  >
-                    <option value="">Select category</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
             </div>
 
             {/* Pricing */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <DollarSign className="w-5 h-5" />
-                Pricing
-              </h2>
-              <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-lg font-semibold mb-4">Pricing</h2>
+              <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Price (₹)</label>
+                  <label className="block text-sm font-medium mb-1">Price (₹) *</label>
                   <input
                     type="number"
+                    name="price"
+                    value={product.price}
+                    onChange={handleChange}
                     required
                     min="0"
-                    step="0.01"
-                    value={product.price}
-                    onChange={(e) => setProduct({ ...product, price: parseFloat(e.target.value) })}
-                    className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-pink-500"
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Compare at Price (₹)</label>
+                  <label className="block text-sm font-medium mb-1">Compare Price (₹)</label>
                   <input
                     type="number"
+                    name="comparePrice"
+                    value={product.comparePrice || ''}
+                    onChange={handleChange}
                     min="0"
-                    step="0.01"
-                    value={product.compareAtPrice || ''}
-                    onChange={(e) =>
-                      setProduct({
-                        ...product,
-                        compareAtPrice: e.target.value ? parseFloat(e.target.value) : null,
-                      })
-                    }
-                    className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-pink-500"
-                    placeholder="Original price for discount"
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Cost Price (₹)</label>
+                  <input
+                    type="number"
+                    name="costPrice"
+                    value={product.costPrice || ''}
+                    onChange={handleChange}
+                    min="0"
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
                   />
                 </div>
               </div>
             </div>
 
             {/* Inventory */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Inventory
-              </h2>
-              <div className="grid md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-lg font-semibold mb-4">Inventory</h2>
+              <div className="grid grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2">SKU</label>
+                  <label className="block text-sm font-medium mb-1">SKU</label>
                   <input
                     type="text"
-                    required
-                    value={product.sku}
-                    onChange={(e) => setProduct({ ...product, sku: e.target.value })}
-                    className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-pink-500"
+                    name="sku"
+                    value={product.sku || ''}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Stock Quantity</label>
+                  <label className="block text-sm font-medium mb-1">Barcode</label>
+                  <input
+                    type="text"
+                    name="barcode"
+                    value={product.barcode || ''}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quantity</label>
                   <input
                     type="number"
-                    required
-                    min="0"
+                    name="inventory"
                     value={product.inventory}
-                    onChange={(e) =>
-                      setProduct({ ...product, inventory: parseInt(e.target.value) })
-                    }
-                    className="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-pink-500"
+                    onChange={handleChange}
+                    min="0"
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Low Stock Alert</label>
+                  <input
+                    type="number"
+                    name="lowStockAlert"
+                    value={product.lowStockAlert}
+                    onChange={handleChange}
+                    min="0"
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Variants */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Variants</h2>
-              
-              {/* Existing Variants */}
-              {product.variants.length > 0 && (
-                <div className="mb-4 space-y-3">
-                  {product.variants.map((variant) => (
-                    <div
-                      key={variant.id}
-                      className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg"
-                    >
-                      <div className="flex-1 grid grid-cols-4 gap-4">
-                        <div>
-                          <span className="text-xs text-gray-500">Name</span>
-                          <p className="font-medium">{variant.name}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-gray-500">SKU</span>
-                          <p className="font-medium">{variant.sku}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-gray-500">Price</span>
-                          <p className="font-medium">₹{variant.price}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-gray-500">Stock</span>
-                          <p className="font-medium">{variant.inventory}</p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeVariant(variant.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Add Variant */}
-              <div className="flex items-end gap-2">
-                <div className="flex-1 grid grid-cols-4 gap-2">
-                  <input
-                    type="text"
-                    placeholder="Variant name"
-                    value={newVariant.name}
-                    onChange={(e) => setNewVariant({ ...newVariant, name: e.target.value })}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="text"
-                    placeholder="SKU"
-                    value={newVariant.sku}
-                    onChange={(e) => setNewVariant({ ...newVariant, sku: e.target.value })}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Price"
-                    value={newVariant.price}
-                    onChange={(e) => setNewVariant({ ...newVariant, price: e.target.value })}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    placeholder="Stock"
-                    value={newVariant.inventory}
-                    onChange={(e) => setNewVariant({ ...newVariant, inventory: e.target.value })}
-                    className="border rounded-lg px-3 py-2 text-sm"
+            {/* Product Details */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-lg font-semibold mb-4">Product Details</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Ingredients</label>
+                  <textarea
+                    name="ingredients"
+                    value={product.ingredients || ''}
+                    onChange={handleChange}
+                    rows={3}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
                   />
                 </div>
-                <button
-                  type="button"
-                  onClick={addVariant}
-                  className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+                <div>
+                  <label className="block text-sm font-medium mb-1">How to Use</label>
+                  <textarea
+                    name="howToUse"
+                    value={product.howToUse || ''}
+                    onChange={handleChange}
+                    rows={3}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Benefits</label>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {product.benefits.map((benefit) => (
+                      <span key={benefit} className="flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
+                        {benefit}
+                        <button type="button" onClick={() => removeBenefit(benefit)}><X className="w-3 h-3" /></button>
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newBenefit}
+                      onChange={(e) => setNewBenefit(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addBenefit())}
+                      placeholder="Add a benefit"
+                      className="flex-1 px-4 py-2 border rounded-lg"
+                    />
+                    <button type="button" onClick={addBenefit} className="px-4 py-2 bg-gray-100 rounded-lg">Add</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -436,102 +455,90 @@ export default function EditProductPage({ params }: { params: { id: string } }) 
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Status */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-xl shadow-sm border p-6">
               <h2 className="text-lg font-semibold mb-4">Status</h2>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={product.isActive}
-                    onChange={(e) =>
-                      setProduct({ ...product, isActive: e.target.checked })
-                    }
-                    className="w-4 h-4 text-pink-600 rounded focus:ring-pink-500"
-                  />
-                  <span>Active (visible on store)</span>
+                  <input type="checkbox" name="isActive" checked={product.isActive} onChange={handleChange} className="w-4 h-4 rounded" />
+                  <span className="text-sm">Active (visible on store)</span>
                 </label>
                 <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={product.isFeatured}
-                    onChange={(e) =>
-                      setProduct({ ...product, isFeatured: e.target.checked })
-                    }
-                    className="w-4 h-4 text-pink-600 rounded focus:ring-pink-500"
-                  />
-                  <span>Featured product</span>
+                  <input type="checkbox" name="isFeatured" checked={product.isFeatured} onChange={handleChange} className="w-4 h-4 rounded" />
+                  <span className="text-sm">Featured product</span>
+                </label>
+                <label className="flex items-center gap-3">
+                  <input type="checkbox" name="isNewArrival" checked={product.isNewArrival} onChange={handleChange} className="w-4 h-4 rounded" />
+                  <span className="text-sm">Mark as new arrival</span>
                 </label>
               </div>
             </div>
 
-            {/* Images */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Upload className="w-5 h-5" />
-                Images
-              </h2>
-              <div className="grid grid-cols-2 gap-2">
-                {product.images.map((image, index) => (
-                  <div key={index} className="relative aspect-square bg-gray-100 rounded-lg">
-                    <Image
-                      src={image.url || '/images/placeholder.jpg'}
-                      alt={image.alt || product.name}
-                      fill
-                      className="object-cover rounded-lg"
-                    />
-                  </div>
+            {/* Category */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-lg font-semibold mb-4">Category</h2>
+              <select
+                name="categoryId"
+                value={product.categoryId}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border rounded-lg"
+              >
+                <option value="">Select category</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
-                <button
-                  type="button"
-                  className="aspect-square border-2 border-dashed rounded-lg flex items-center justify-center text-gray-400 hover:border-pink-500 hover:text-pink-500 transition"
-                >
-                  <Plus className="w-6 h-6" />
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-gray-500">
-                Click + to upload images. Drag to reorder.
-              </p>
+              </select>
             </div>
 
             {/* Tags */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Tag className="w-5 h-5" />
-                Tags
-              </h2>
-              <div className="flex flex-wrap gap-2 mb-4">
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-lg font-semibold mb-4">Tags</h2>
+              <div className="flex flex-wrap gap-2 mb-3">
                 {product.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 rounded-full text-sm"
-                  >
+                  <span key={tag} className="flex items-center gap-1 px-3 py-1 bg-pink-100 text-pink-700 rounded-full text-sm">
                     {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(tag)}
-                      className="text-gray-500 hover:text-red-500"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    <button type="button" onClick={() => removeTag(tag)}><X className="w-3 h-3" /></button>
                   </span>
                 ))}
               </div>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Add tag"
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                  className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                  placeholder="Add tag"
+                  className="flex-1 px-3 py-2 border rounded-lg text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={addTag}
-                  className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
-                >
-                  Add
-                </button>
+                <button type="button" onClick={addTag} className="px-3 py-2 bg-gray-100 rounded-lg text-sm">Add</button>
+              </div>
+            </div>
+
+            {/* SEO */}
+            <div className="bg-white rounded-xl shadow-sm border p-6">
+              <h2 className="text-lg font-semibold mb-4">SEO</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Meta Title</label>
+                  <input
+                    type="text"
+                    name="metaTitle"
+                    value={product.metaTitle || ''}
+                    onChange={handleChange}
+                    maxLength={60}
+                    className="w-full px-4 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Meta Description</label>
+                  <textarea
+                    name="metaDesc"
+                    value={product.metaDesc || ''}
+                    onChange={handleChange}
+                    maxLength={160}
+                    rows={2}
+                    className="w-full px-4 py-2 border rounded-lg"
+                  />
+                </div>
               </div>
             </div>
           </div>

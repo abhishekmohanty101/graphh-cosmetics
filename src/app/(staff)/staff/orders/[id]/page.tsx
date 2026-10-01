@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -12,61 +12,45 @@ import {
   CheckCircle,
   Clock,
   Box,
+  Loader2,
 } from 'lucide-react'
 
-// Mock order data
-const mockOrder = {
-  id: 'GCM8X9K2',
-  status: 'PENDING',
-  paymentStatus: 'PAID',
-  paymentMethod: 'Razorpay',
-  createdAt: '2024-01-15T10:30:00',
-  customer: {
-    name: 'Priya Sharma',
-    phone: '+91 9876543210',
-  },
-  shippingAddress: {
-    name: 'Priya Sharma',
-    phone: '+91 9876543210',
-    line1: '123, Rose Garden Apartments',
-    line2: 'Bandra West',
-    city: 'Mumbai',
-    state: 'Maharashtra',
-    pincode: '400050',
-  },
-  items: [
-    {
-      id: '1',
-      name: 'Rose Glow Serum',
-      variant: '30ml',
-      sku: 'GC-SRM-001',
-      price: 1299,
-      quantity: 1,
-      location: 'Rack A-12',
-    },
-    {
-      id: '2',
-      name: 'Vitamin C Moisturizer',
-      variant: null,
-      sku: 'GC-MST-002',
-      price: 899,
-      quantity: 1,
-      location: 'Rack B-05',
-    },
-    {
-      id: '3',
-      name: 'Hyaluronic Acid Toner',
-      variant: '100ml',
-      sku: 'GC-TNR-003',
-      price: 699,
-      quantity: 1,
-      location: 'Rack A-08',
-    },
-  ],
-  subtotal: 2897,
-  shippingCost: 0,
-  total: 2499,
-  notes: 'Please pack carefully',
+interface OrderItem {
+  id: string
+  productId: string
+  product: { name: string; sku: string | null }
+  variantId: string | null
+  variant: { name: string } | null
+  quantity: number
+  price: number
+}
+
+interface Order {
+  id: string
+  orderNumber: string
+  status: string
+  paymentStatus: string
+  paymentMethod: string | null
+  subtotal: number
+  discount: number
+  shippingCost: number
+  total: number
+  notes: string | null
+  trackingNumber: string | null
+  carrier: string | null
+  createdAt: string
+  user: { name: string | null; email: string; phone: string | null }
+  address: {
+    name: string
+    phone: string
+    line1: string
+    line2: string | null
+    city: string
+    state: string
+    postalCode: string
+    country: string
+  } | null
+  items: OrderItem[]
 }
 
 const statusSteps = [
@@ -77,13 +61,33 @@ const statusSteps = [
 ]
 
 export default function StaffOrderDetailPage({ params }: { params: { id: string } }) {
-  const [order, setOrder] = useState(mockOrder)
+  const [order, setOrder] = useState<Order | null>(null)
+  const [loading, setLoading] = useState(true)
   const [trackingNumber, setTrackingNumber] = useState('')
   const [carrier, setCarrier] = useState('Shiprocket')
   const [showShipModal, setShowShipModal] = useState(false)
   const [pickedItems, setPickedItems] = useState<string[]>([])
+  const [updating, setUpdating] = useState(false)
 
-  const currentStepIndex = statusSteps.findIndex((s) => s.key === order.status)
+  useEffect(() => {
+    fetchOrder()
+  }, [params.id])
+
+  const fetchOrder = async () => {
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${params.id}`)
+      const data = await res.json()
+      if (data.success) {
+        setOrder(data.data.order)
+      }
+    } catch (err) {
+      console.error('Failed to fetch order')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const currentStepIndex = order ? statusSteps.findIndex((s) => s.key === order.status) : 0
 
   const togglePickedItem = (itemId: string) => {
     setPickedItems((prev) =>
@@ -91,22 +95,51 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
     )
   }
 
-  const allItemsPicked = order.items.every((item) => pickedItems.includes(item.id))
+  const allItemsPicked = order ? order.items.every((item) => pickedItems.includes(item.id)) : false
 
-  const handleConfirmOrder = () => {
-    setOrder((prev) => ({ ...prev, status: 'PROCESSING' }))
-    // TODO: API call
+  const handleConfirmOrder = async () => {
+    if (!order) return
+    setUpdating(true)
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'PROCESSING' }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrder({ ...order, status: 'PROCESSING' })
+      }
+    } catch (err) {
+      console.error('Failed to update')
+    } finally {
+      setUpdating(false)
+    }
   }
 
   const handleMarkReadyToShip = () => {
     setShowShipModal(true)
   }
 
-  const handleShipOrder = () => {
-    if (!trackingNumber) return
-    setOrder((prev) => ({ ...prev, status: 'SHIPPED' }))
-    setShowShipModal(false)
-    // TODO: API call
+  const handleShipOrder = async () => {
+    if (!order || !trackingNumber) return
+    setUpdating(true)
+    try {
+      const res = await fetch(`/api/v1/admin/orders/${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'SHIPPED', trackingNumber, carrier }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setOrder({ ...order, status: 'SHIPPED', trackingNumber, carrier })
+        setShowShipModal(false)
+      }
+    } catch (err) {
+      console.error('Failed to ship')
+    } finally {
+      setUpdating(false)
+    }
   }
 
   const formatDate = (dateStr: string) => {
@@ -117,6 +150,26 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
       hour: '2-digit',
       minute: '2-digit',
     })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
+      </div>
+    )
+  }
+
+  if (!order) {
+    return (
+      <div className="text-center py-12">
+        <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500">Order not found</p>
+        <Link href="/staff/orders" className="text-cyan-600 hover:underline mt-2 inline-block">
+          Back to orders
+        </Link>
+      </div>
+    )
   }
 
   return (
@@ -131,7 +184,7 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Order #{order.id}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Order #{order.orderNumber || order.id.slice(0, 8)}</h1>
             <p className="text-gray-500">Placed on {formatDate(order.createdAt)}</p>
           </div>
         </div>
@@ -143,9 +196,10 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
           {order.status === 'PENDING' && (
             <button
               onClick={handleConfirmOrder}
-              className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
+              disabled={updating}
+              className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50"
             >
-              Confirm Order
+              {updating ? 'Confirming...' : 'Confirm Order'}
             </button>
           )}
           {order.status === 'PROCESSING' && allItemsPicked && (
@@ -230,14 +284,13 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
                       {isPicked && <CheckCircle className="w-4 h-4" />}
                     </button>
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{item.name}</p>
+                      <p className="font-medium text-gray-900">{item.product?.name || 'Product'}</p>
                       {item.variant && (
-                        <p className="text-sm text-gray-500">Variant: {item.variant}</p>
+                        <p className="text-sm text-gray-500">Variant: {item.variant.name}</p>
                       )}
-                      <p className="text-sm text-gray-400">SKU: {item.sku}</p>
+                      <p className="text-sm text-gray-400">SKU: {item.product?.sku || 'N/A'}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium text-cyan-600">📍 {item.location}</p>
                       <p className="text-sm text-gray-500">Qty: {item.quantity}</p>
                     </div>
                     <div className="text-right">
@@ -252,6 +305,12 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
                 <span className="text-gray-500">Subtotal</span>
                 <span>₹{order.subtotal.toLocaleString()}</span>
               </div>
+              {order.discount > 0 && (
+                <div className="flex justify-between text-sm mt-1">
+                  <span className="text-gray-500">Discount</span>
+                  <span className="text-green-600">-₹{order.discount.toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm mt-1">
                 <span className="text-gray-500">Shipping</span>
                 <span>{order.shippingCost === 0 ? 'Free' : `₹${order.shippingCost}`}</span>
@@ -280,19 +339,23 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
               <MapPin className="w-5 h-5" />
               Shipping Address
             </h2>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p className="font-medium text-gray-900">{order.shippingAddress.name}</p>
-              <p>{order.shippingAddress.line1}</p>
-              {order.shippingAddress.line2 && <p>{order.shippingAddress.line2}</p>}
-              <p>
-                {order.shippingAddress.city}, {order.shippingAddress.state}{' '}
-                {order.shippingAddress.pincode}
-              </p>
-              <div className="flex items-center gap-2 pt-2 text-cyan-600">
-                <Phone className="w-4 h-4" />
-                <a href={`tel:${order.shippingAddress.phone}`}>{order.shippingAddress.phone}</a>
+            {order.address ? (
+              <div className="text-sm text-gray-600 space-y-1">
+                <p className="font-medium text-gray-900">{order.address.name}</p>
+                <p>{order.address.line1}</p>
+                {order.address.line2 && <p>{order.address.line2}</p>}
+                <p>
+                  {order.address.city}, {order.address.state}{' '}
+                  {order.address.postalCode}
+                </p>
+                <div className="flex items-center gap-2 pt-2 text-cyan-600">
+                  <Phone className="w-4 h-4" />
+                  <a href={`tel:${order.address.phone}`}>{order.address.phone}</a>
+                </div>
               </div>
-            </div>
+            ) : (
+              <p className="text-gray-500 text-sm">No address provided</p>
+            )}
           </div>
 
           {/* Payment Info */}
@@ -301,7 +364,7 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500">Method</span>
-                <span className="font-medium">{order.paymentMethod}</span>
+                <span className="font-medium">{order.paymentMethod || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Status</span>
@@ -316,19 +379,33 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
             </div>
           </div>
 
+          {/* Tracking Info */}
+          {order.trackingNumber && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Tracking</h2>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Carrier</span>
+                  <span className="font-medium">{order.carrier}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Tracking #</span>
+                  <span className="font-medium font-mono">{order.trackingNumber}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Quick Actions */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
             <div className="space-y-2">
-              <button className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-lg border border-gray-200">
+              <a href={`tel:${order.address?.phone || order.user.phone}`} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-lg border border-gray-200 block">
                 📞 Call Customer
-              </button>
-              <button className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-lg border border-gray-200">
+              </a>
+              <a href={`mailto:${order.user.email}`} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-lg border border-gray-200 block">
                 📧 Send Email Update
-              </button>
-              <button className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 rounded-lg border border-gray-200">
-                🎫 Create Support Ticket
-              </button>
+              </a>
             </div>
           </div>
         </div>
@@ -378,10 +455,10 @@ export default function StaffOrderDetailPage({ params }: { params: { id: string 
               </button>
               <button
                 onClick={handleShipOrder}
-                disabled={!trackingNumber}
+                disabled={!trackingNumber || updating}
                 className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50"
               >
-                Confirm Shipment
+                {updating ? 'Shipping...' : 'Confirm Shipment'}
               </button>
             </div>
           </div>

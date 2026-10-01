@@ -6,110 +6,119 @@ import Image from 'next/image'
 import {
   Plus,
   Search,
-  Filter,
-  MoreVertical,
   Edit,
   Trash2,
   Eye,
   ChevronLeft,
   ChevronRight,
   Package,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react'
 
-// Mock data - will be replaced with API
-const mockProducts = [
-  {
-    id: '1',
-    name: 'Rose Glow Serum',
-    slug: 'rose-glow-serum',
-    image: '/images/products/serum-1.jpg',
-    category: 'Serums',
-    price: 1299,
-    comparePrice: 1599,
-    inventory: 45,
-    status: 'active',
-    isFeatured: true,
-  },
-  {
-    id: '2',
-    name: 'Vitamin C Moisturizer',
-    slug: 'vitamin-c-moisturizer',
-    image: '/images/products/moisturizer-1.jpg',
-    category: 'Moisturizers',
-    price: 899,
-    comparePrice: null,
-    inventory: 32,
-    status: 'active',
-    isFeatured: false,
-  },
-  {
-    id: '3',
-    name: 'Hyaluronic Acid Cream',
-    slug: 'hyaluronic-acid-cream',
-    image: '/images/products/cream-1.jpg',
-    category: 'Creams',
-    price: 1499,
-    comparePrice: 1899,
-    inventory: 0,
-    status: 'out_of_stock',
-    isFeatured: true,
-  },
-  {
-    id: '4',
-    name: 'Niacinamide Toner',
-    slug: 'niacinamide-toner',
-    image: '/images/products/toner-1.jpg',
-    category: 'Toners',
-    price: 699,
-    comparePrice: null,
-    inventory: 12,
-    status: 'low_stock',
-    isFeatured: false,
-  },
-  {
-    id: '5',
-    name: 'Retinol Night Cream',
-    slug: 'retinol-night-cream',
-    image: '/images/products/night-cream-1.jpg',
-    category: 'Night Care',
-    price: 1799,
-    comparePrice: 2199,
-    inventory: 89,
-    status: 'active',
-    isFeatured: true,
-  },
-]
+interface Product {
+  id: string
+  name: string
+  slug: string
+  images: string[]
+  category: { id: string; name: string } | null
+  price: number
+  comparePrice: number | null
+  inventory: number
+  isActive: boolean
+  isFeatured: boolean
+  isNewArrival: boolean
+  createdAt: string
+}
 
-const statusConfig: Record<string, { label: string; className: string }> = {
-  active: { label: 'Active', className: 'bg-green-100 text-green-700' },
-  draft: { label: 'Draft', className: 'bg-gray-100 text-gray-700' },
-  out_of_stock: { label: 'Out of Stock', className: 'bg-red-100 text-red-700' },
-  low_stock: { label: 'Low Stock', className: 'bg-yellow-100 text-yellow-700' },
+interface Category {
+  id: string
+  name: string
 }
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState(mockProducts)
+  const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('all')
   const [selectedProducts, setSelectedProducts] = useState<string[]>([])
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [productToDelete, setProductToDelete] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const limit = 10
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase())
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory
-    const matchesStatus = selectedStatus === 'all' || product.status === selectedStatus
-    return matchesSearch && matchesCategory && matchesStatus
-  })
+  useEffect(() => {
+    fetchProducts()
+    fetchCategories()
+  }, [page])
 
-  const categories = ['all', ...Array.from(new Set(products.map((p) => p.category)))]
+  const fetchProducts = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      })
+      if (search) params.append('search', search)
+      if (selectedCategory !== 'all') params.append('categoryId', selectedCategory)
+      if (selectedStatus !== 'all') params.append('isActive', selectedStatus === 'active' ? 'true' : 'false')
+
+      const res = await fetch(`/api/v1/admin/products?${params}`)
+      const data = await res.json()
+      
+      if (data.success) {
+        setProducts(data.data.products)
+        if (data.pagination) {
+          setTotalPages(data.pagination.totalPages || 1)
+          setTotal(data.pagination.total || data.data.products.length)
+        }
+      } else {
+        setError(data.error || 'Failed to fetch products')
+      }
+    } catch (err) {
+      setError('Failed to fetch products')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/v1/admin/categories')
+      const data = await res.json()
+      if (data.success) {
+        setCategories(data.data.categories)
+      }
+    } catch (err) {
+      console.error('Failed to fetch categories')
+    }
+  }
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setPage(1)
+    fetchProducts()
+  }
+
+  const getStatus = (product: Product) => {
+    if (!product.isActive) return { label: 'Inactive', className: 'bg-gray-100 text-gray-700' }
+    if (product.inventory === 0) return { label: 'Out of Stock', className: 'bg-red-100 text-red-700' }
+    if (product.inventory < 10) return { label: 'Low Stock', className: 'bg-yellow-100 text-yellow-700' }
+    return { label: 'Active', className: 'bg-green-100 text-green-700' }
+  }
 
   const toggleSelectAll = () => {
-    if (selectedProducts.length === filteredProducts.length) {
+    if (selectedProducts.length === products.length) {
       setSelectedProducts([])
     } else {
-      setSelectedProducts(filteredProducts.map((p) => p.id))
+      setSelectedProducts(products.map((p) => p.id))
     }
   }
 
@@ -124,9 +133,26 @@ export default function ProductsPage() {
     setShowDeleteModal(true)
   }
 
-  const confirmDelete = () => {
-    if (productToDelete) {
-      setProducts((prev) => prev.filter((p) => p.id !== productToDelete))
+  const confirmDelete = async () => {
+    if (!productToDelete) return
+    
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/v1/admin/products/${productToDelete}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      
+      if (data.success) {
+        setProducts((prev) => prev.filter((p) => p.id !== productToDelete))
+        setTotal((prev) => prev - 1)
+      } else {
+        setError(data.error || 'Failed to delete product')
+      }
+    } catch (err) {
+      setError('Failed to delete product')
+    } finally {
+      setDeleting(false)
       setShowDeleteModal(false)
       setProductToDelete(null)
     }
@@ -138,7 +164,7 @@ export default function ProductsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-          <p className="text-gray-500">{products.length} products total</p>
+          <p className="text-gray-500">{total} products total</p>
         </div>
         <Link
           href="/admin/products/new"
@@ -149,9 +175,17 @@ export default function ProductsPage() {
         </Link>
       </div>
 
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" />
+          {error}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-        <div className="flex flex-col md:flex-row gap-4">
+        <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
           {/* Search */}
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -167,13 +201,16 @@ export default function ProductsPage() {
           {/* Category filter */}
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value)
+              setPage(1)
+            }}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
           >
             <option value="all">All Categories</option>
-            {categories.slice(1).map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
               </option>
             ))}
           </select>
@@ -181,16 +218,24 @@ export default function ProductsPage() {
           {/* Status filter */}
           <select
             value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value)
+              setPage(1)
+            }}
             className="px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
           >
             <option value="all">All Status</option>
             <option value="active">Active</option>
-            <option value="draft">Draft</option>
-            <option value="out_of_stock">Out of Stock</option>
-            <option value="low_stock">Low Stock</option>
+            <option value="inactive">Inactive</option>
           </select>
-        </div>
+
+          <button
+            type="submit"
+            className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+          >
+            Search
+          </button>
+        </form>
 
         {/* Bulk actions */}
         {selectedProducts.length > 0 && (
@@ -198,9 +243,6 @@ export default function ProductsPage() {
             <span className="text-sm font-medium text-pink-700">
               {selectedProducts.length} selected
             </span>
-            <button className="text-sm text-pink-600 hover:text-pink-700">
-              Bulk Edit
-            </button>
             <button className="text-sm text-red-600 hover:text-red-700">
               Delete Selected
             </button>
@@ -210,170 +252,185 @@ export default function ProductsPage() {
 
       {/* Products table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-4 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                  />
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
-                  Product
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
-                  Category
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
-                  Price
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
-                  Stock
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
-                  Status
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredProducts.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-pink-500" />
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center">
-                    <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                    <p className="text-gray-500">No products found</p>
-                  </td>
+                  <th className="px-4 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedProducts.length === products.length && products.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Product
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Category
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Price
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Stock
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">
+                    Actions
+                  </th>
                 </tr>
-              ) : (
-                filteredProducts.map((product) => (
-                  <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
-                        onChange={() => toggleSelectProduct(product.id)}
-                        className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
-                          {product.image ? (
-                            <Image
-                              src={product.image}
-                              alt={product.name}
-                              width={48}
-                              height={48}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <Package className="w-6 h-6 text-gray-400" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{product.name}</p>
-                          <p className="text-sm text-gray-500">{product.slug}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{product.category}</td>
-                    <td className="px-4 py-3">
-                      <div>
-                        <p className="font-medium text-gray-900">₹{product.price}</p>
-                        {product.comparePrice && (
-                          <p className="text-sm text-gray-400 line-through">
-                            ₹{product.comparePrice}
-                          </p>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`font-medium ${
-                          product.inventory === 0
-                            ? 'text-red-600'
-                            : product.inventory < 20
-                            ? 'text-yellow-600'
-                            : 'text-gray-900'
-                        }`}
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {products.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center">
+                      <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className="text-gray-500 mb-4">No products found</p>
+                      <Link
+                        href="/admin/products/new"
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700"
                       >
-                        {product.inventory}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                          statusConfig[product.status]?.className
-                        }`}
-                      >
-                        {statusConfig[product.status]?.label}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Link
-                          href={`/products/${product.slug}`}
-                          target="_blank"
-                          className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
-                          title="View"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Link>
-                        <Link
-                          href={`/admin/products/${product.id}`}
-                          className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-gray-100"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(product.id)}
-                          className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-100"
-                          title="Delete"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                        <Plus className="w-4 h-4" />
+                        Add Your First Product
+                      </Link>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  products.map((product) => {
+                    const status = getStatus(product)
+                    return (
+                      <tr key={product.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedProducts.includes(product.id)}
+                            onChange={() => toggleSelectProduct(product.id)}
+                            className="w-4 h-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                              {product.images && product.images[0] ? (
+                                <img
+                                  src={product.images[0]}
+                                  alt={product.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <Package className="w-6 h-6 text-gray-400" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">{product.name}</p>
+                              <p className="text-sm text-gray-500">{product.slug}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          {product.category?.name || '-'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div>
+                            <p className="font-medium text-gray-900">₹{product.price}</p>
+                            {product.comparePrice && (
+                              <p className="text-sm text-gray-400 line-through">
+                                ₹{product.comparePrice}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`font-medium ${
+                              product.inventory === 0
+                                ? 'text-red-600'
+                                : product.inventory < 10
+                                ? 'text-yellow-600'
+                                : 'text-gray-900'
+                            }`}
+                          >
+                            {product.inventory}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-xs font-medium ${status.className}`}
+                          >
+                            {status.label}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Link
+                              href={`/products/${product.slug}`}
+                              target="_blank"
+                              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+                              title="View"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Link>
+                            <Link
+                              href={`/admin/products/${product.id}/edit`}
+                              className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-gray-100"
+                              title="Edit"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Link>
+                            <button
+                              onClick={() => handleDelete(product.id)}
+                              className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-100"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-          <p className="text-sm text-gray-500">
-            Showing 1 to {filteredProducts.length} of {products.length} products
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              disabled
-              className="p-2 border border-gray-200 rounded-lg disabled:opacity-50"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button className="px-3 py-1 bg-pink-600 text-white rounded-lg text-sm">
-              1
-            </button>
-            <button className="px-3 py-1 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-              2
-            </button>
-            <button className="px-3 py-1 border border-gray-200 rounded-lg text-sm hover:bg-gray-50">
-              3
-            </button>
-            <button className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50">
-              <ChevronRight className="w-4 h-4" />
-            </button>
+        {products.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+            <p className="text-sm text-gray-500">
+              Page {page} of {totalPages} ({total} products)
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-3 py-1 bg-pink-600 text-white rounded-lg text-sm">
+                {page}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-2 border border-gray-200 rounded-lg disabled:opacity-50 hover:bg-gray-50"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Delete confirmation modal */}
@@ -387,14 +444,17 @@ export default function ProductsPage() {
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
                 className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2"
               >
+                {deleting && <Loader2 className="w-4 h-4 animate-spin" />}
                 Delete
               </button>
             </div>

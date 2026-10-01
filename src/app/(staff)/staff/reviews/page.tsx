@@ -1,17 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Star, Check, X, Eye, Filter, Search } from 'lucide-react'
+import { Star, Check, X, Loader2, MessageSquare } from 'lucide-react'
 
 interface Review {
   id: string
   rating: number
-  title: string
-  comment: string
-  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  title: string | null
+  content: string
+  status: string
   createdAt: string
-  user: { name: string; email: string }
-  product: { id: string; name: string; images: { url: string }[] }
+  user: { name: string | null; email: string }
+  product: { id: string; name: string }
 }
 
 export default function StaffReviewsPage() {
@@ -19,19 +19,20 @@ export default function StaffReviewsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
   const [search, setSearch] = useState('')
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   useEffect(() => {
     fetchReviews()
-  }, [filter, search])
+  }, [filter])
 
   const fetchReviews = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (filter !== 'all') params.set('status', filter.toUpperCase())
-      if (search) params.set('search', search)
+      const params = new URLSearchParams({ limit: '50' })
+      if (filter !== 'all') params.append('status', filter.toUpperCase())
+      if (search) params.append('search', search)
 
-      const res = await fetch(`/api/v1/staff/reviews?${params}`)
+      const res = await fetch(`/api/v1/admin/reviews?${params}`)
       const data = await res.json()
       if (data.success) {
         setReviews(data.data.reviews)
@@ -43,20 +44,41 @@ export default function StaffReviewsPage() {
     }
   }
 
-  const handleAction = async (reviewId: string, action: 'approve' | 'reject') => {
+  const handleApprove = async (reviewId: string) => {
+    setActionLoading(reviewId)
     try {
-      const res = await fetch(`/api/v1/staff/reviews/${reviewId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: action === 'approve' ? 'APPROVED' : 'REJECTED' }),
+      const res = await fetch(`/api/v1/admin/reviews/${reviewId}/approve`, {
+        method: 'POST',
       })
-
       if (res.ok) {
         fetchReviews()
       }
     } catch (err) {
-      console.error('Failed to update review')
+      console.error('Failed to approve review')
+    } finally {
+      setActionLoading(null)
     }
+  }
+
+  const handleReject = async (reviewId: string) => {
+    setActionLoading(reviewId)
+    try {
+      const res = await fetch(`/api/v1/admin/reviews/${reviewId}`, {
+        method: 'DELETE',
+      })
+      if (res.ok) {
+        setReviews(prev => prev.filter(r => r.id !== reviewId))
+      }
+    } catch (err) {
+      console.error('Failed to reject review')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    fetchReviews()
   }
 
   const renderStars = (rating: number) => {
@@ -88,35 +110,24 @@ export default function StaffReviewsPage() {
   }
 
   return (
-    <div>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Review Moderation</h1>
-          <p className="text-gray-600">Approve or reject customer reviews</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Review Moderation</h1>
+        <p className="text-gray-500">Approve or reject customer reviews</p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search reviews..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-pink-500"
-            />
-          </div>
-          <div className="flex gap-2">
+      <div className="bg-white rounded-xl shadow-sm border p-4">
+        <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
+          <div className="flex gap-2 flex-wrap">
             {(['all', 'pending', 'approved', 'rejected'] as const).map((f) => (
               <button
                 key={f}
+                type="button"
                 onClick={() => setFilter(f)}
                 className={`px-4 py-2 rounded-lg transition capitalize ${
                   filter === f
-                    ? 'bg-pink-600 text-white'
+                    ? 'bg-cyan-600 text-white'
                     : 'bg-gray-100 hover:bg-gray-200'
                 }`}
               >
@@ -124,33 +135,30 @@ export default function StaffReviewsPage() {
               </button>
             ))}
           </div>
-        </div>
+        </form>
       </div>
 
       {/* Reviews List */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500" />
+          <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
         </div>
       ) : reviews.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <Star className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No reviews found</h2>
-          <p className="text-gray-600">
-            {filter === 'pending' ? 'No pending reviews to moderate' : 'Try a different filter'}
+        <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
+          <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500">
+            {filter === 'pending' ? 'No pending reviews to moderate' : 'No reviews found'}
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           {reviews.map((review) => (
-            <div key={review.id} className="bg-white rounded-lg shadow p-6">
+            <div key={review.id} className="bg-white rounded-xl shadow-sm border p-6">
               <div className="flex flex-col md:flex-row gap-4">
                 {/* Product Info */}
                 <div className="md:w-48 flex-shrink-0">
-                  <div className="w-full h-32 bg-gray-100 rounded-lg overflow-hidden relative mb-2">
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-4xl">📦</span>
-                    </div>
+                  <div className="w-full h-24 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center mb-2">
+                    <span className="text-4xl">📦</span>
                   </div>
                   <p className="font-medium text-sm line-clamp-2">{review.product.name}</p>
                 </div>
@@ -172,27 +180,37 @@ export default function StaffReviewsPage() {
                     </p>
                   </div>
 
-                  <p className="text-gray-600 mb-4">{review.comment}</p>
+                  <p className="text-gray-600 mb-4">{review.content}</p>
 
                   <div className="flex items-center justify-between">
                     <div className="text-sm text-gray-500">
-                      By: <span className="font-medium">{review.user.name}</span> ({review.user.email})
+                      By: <span className="font-medium">{review.user.name || 'Anonymous'}</span> ({review.user.email})
                     </div>
 
                     {review.status === 'PENDING' && (
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handleAction(review.id, 'approve')}
-                          className="inline-flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                          onClick={() => handleApprove(review.id)}
+                          disabled={actionLoading === review.id}
+                          className="inline-flex items-center gap-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
                         >
-                          <Check className="w-4 h-4" />
+                          {actionLoading === review.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Check className="w-4 h-4" />
+                          )}
                           Approve
                         </button>
                         <button
-                          onClick={() => handleAction(review.id, 'reject')}
-                          className="inline-flex items-center gap-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                          onClick={() => handleReject(review.id)}
+                          disabled={actionLoading === review.id}
+                          className="inline-flex items-center gap-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50"
                         >
-                          <X className="w-4 h-4" />
+                          {actionLoading === review.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <X className="w-4 h-4" />
+                          )}
                           Reject
                         </button>
                       </div>

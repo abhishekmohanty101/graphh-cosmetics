@@ -7,23 +7,22 @@ import {
   Search,
   Package,
   AlertTriangle,
-  Filter,
   Eye,
-  Edit,
-  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
 } from 'lucide-react'
 
 interface Product {
   id: string
   name: string
-  sku: string
+  slug: string
+  sku: string | null
   price: number
   inventory: number
   images: { url: string }[]
-  category: { name: string }
+  category: { name: string } | null
   isActive: boolean
-  lowStock: boolean
-  outOfStock: boolean
 }
 
 export default function StaffProductsPage() {
@@ -32,32 +31,37 @@ export default function StaffProductsPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'low' | 'out'>('all')
   const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
   useEffect(() => {
     fetchProducts()
-  }, [search, filter, page])
+  }, [page])
 
   const fetchProducts = async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: '20',
-      })
-      if (search) params.set('search', search)
-      if (filter === 'low') params.set('lowStock', 'true')
-      if (filter === 'out') params.set('outOfStock', 'true')
+      const params = new URLSearchParams({ page: page.toString(), limit: '20' })
+      if (search) params.append('search', search)
 
-      const res = await fetch(`/api/v1/staff/inventory?${params}`)
+      const res = await fetch(`/api/v1/admin/products?${params}`)
       const data = await res.json()
       if (data.success) {
         setProducts(data.data.products)
+        setTotalPages(data.pagination?.totalPages || 1)
+        setTotal(data.pagination?.total || 0)
       }
     } catch (err) {
       console.error('Failed to fetch products')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setPage(1)
+    fetchProducts()
   }
 
   const formatCurrency = (amount: number) => {
@@ -78,18 +82,23 @@ export default function StaffProductsPage() {
     return <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs">In Stock</span>
   }
 
+  // Filter products locally based on stock
+  const filteredProducts = products.filter(p => {
+    if (filter === 'low') return p.inventory > 0 && p.inventory <= 10
+    if (filter === 'out') return p.inventory === 0
+    return true
+  })
+
   return (
-    <div>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Products</h1>
-          <p className="text-gray-600">View product information and inventory</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+        <p className="text-gray-500">{total} products</p>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
+      <div className="bg-white rounded-xl shadow-sm border p-4">
+        <form onSubmit={handleSearch} className="flex flex-col md:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -97,21 +106,23 @@ export default function StaffProductsPage() {
               placeholder="Search by name or SKU..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-pink-500"
+              className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => setFilter('all')}
               className={`px-4 py-2 rounded-lg transition ${
                 filter === 'all'
-                  ? 'bg-pink-600 text-white'
+                  ? 'bg-cyan-600 text-white'
                   : 'bg-gray-100 hover:bg-gray-200'
               }`}
             >
               All
             </button>
             <button
+              type="button"
               onClick={() => setFilter('low')}
               className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${
                 filter === 'low'
@@ -123,6 +134,7 @@ export default function StaffProductsPage() {
               Low Stock
             </button>
             <button
+              type="button"
               onClick={() => setFilter('out')}
               className={`px-4 py-2 rounded-lg transition ${
                 filter === 'out'
@@ -133,39 +145,41 @@ export default function StaffProductsPage() {
               Out of Stock
             </button>
           </div>
-        </div>
+          <button type="submit" className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
+            Search
+          </button>
+        </form>
       </div>
 
       {/* Product List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500" />
-        </div>
-      ) : products.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2">No products found</h2>
-          <p className="text-gray-600">Try a different search or filter</p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-cyan-500" />
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center py-12">
+            <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500">No products found</p>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="text-left px-6 py-3 text-sm font-semibold">Product</th>
-                  <th className="text-left px-6 py-3 text-sm font-semibold">SKU</th>
-                  <th className="text-left px-6 py-3 text-sm font-semibold">Category</th>
-                  <th className="text-right px-6 py-3 text-sm font-semibold">Price</th>
-                  <th className="text-center px-6 py-3 text-sm font-semibold">Stock</th>
-                  <th className="text-center px-6 py-3 text-sm font-semibold">Status</th>
-                  <th className="text-right px-6 py-3 text-sm font-semibold">Actions</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Product</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">SKU</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Category</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Price</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Stock</th>
+                  <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {products.map((product) => (
+                {filteredProducts.map((product) => (
                   <tr key={product.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden relative">
                           {product.images?.[0] ? (
@@ -183,22 +197,22 @@ export default function StaffProductsPage() {
                         </div>
                         <div>
                           <p className="font-medium line-clamp-1">{product.name}</p>
-                          <p className={`text-sm ${product.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                          <p className={`text-xs ${product.isActive ? 'text-green-600' : 'text-red-600'}`}>
                             {product.isActive ? 'Active' : 'Inactive'}
                           </p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm font-mono text-gray-600">
-                      {product.sku}
+                    <td className="px-4 py-3 text-sm font-mono text-gray-600">
+                      {product.sku || '-'}
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className="px-4 py-3 text-sm">
                       {product.category?.name || '-'}
                     </td>
-                    <td className="px-6 py-4 text-right font-semibold">
+                    <td className="px-4 py-3 text-right font-semibold">
                       {formatCurrency(product.price)}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-3 text-center">
                       <span className={`font-semibold ${
                         product.inventory === 0 ? 'text-red-600' :
                         product.inventory <= 10 ? 'text-yellow-600' : 'text-gray-900'
@@ -206,13 +220,13 @@ export default function StaffProductsPage() {
                         {product.inventory}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-4 py-3 text-center">
                       {getStockStatus(product)}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-4 py-3 text-right">
                       <Link
-                        href={`/staff/inventory/${product.id}`}
-                        className="inline-flex items-center gap-1 text-pink-600 hover:text-pink-700"
+                        href={`/products/${product.slug}`}
+                        className="inline-flex items-center gap-1 text-cyan-600 hover:text-cyan-700"
                       >
                         <Eye className="w-4 h-4" />
                         View
@@ -223,8 +237,30 @@ export default function StaffProductsPage() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )}
+
+        {filteredProducts.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t">
+            <p className="text-sm text-gray-500">Page {page} of {totalPages}</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 border rounded-lg disabled:opacity-50"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-2 border rounded-lg disabled:opacity-50"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

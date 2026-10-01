@@ -4,328 +4,323 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   TrendingUp,
-  TrendingDown,
   Package,
   ShoppingCart,
   Users,
   IndianRupee,
   ArrowRight,
-  MoreHorizontal,
+  Loader2,
+  AlertCircle,
 } from 'lucide-react'
 
-// Mock data - will be replaced with API calls
-const stats = [
-  {
-    name: 'Total Revenue',
-    value: '₹12,45,890',
-    change: '+12.5%',
-    trend: 'up',
-    icon: IndianRupee,
-    color: 'bg-green-500',
-  },
-  {
-    name: 'Orders',
-    value: '1,234',
-    change: '+8.2%',
-    trend: 'up',
-    icon: ShoppingCart,
-    color: 'bg-blue-500',
-  },
-  {
-    name: 'Customers',
-    value: '8,567',
-    change: '+5.3%',
-    trend: 'up',
-    icon: Users,
-    color: 'bg-purple-500',
-  },
-  {
-    name: 'Products',
-    value: '456',
-    change: '-2.1%',
-    trend: 'down',
-    icon: Package,
-    color: 'bg-orange-500',
-  },
-]
+interface DashboardStats {
+  totalRevenue: number
+  totalOrders: number
+  totalCustomers: number
+  totalProducts: number
+}
 
-const recentOrders = [
-  {
-    id: 'GCM8X9K2',
-    customer: 'Priya Sharma',
-    email: 'priya@example.com',
-    amount: '₹2,499',
-    status: 'Processing',
-    date: '2 min ago',
-  },
-  {
-    id: 'GCL7Y3N1',
-    customer: 'Rahul Verma',
-    email: 'rahul@example.com',
-    amount: '₹1,899',
-    status: 'Shipped',
-    date: '15 min ago',
-  },
-  {
-    id: 'GCK5T8M4',
-    customer: 'Anjali Patel',
-    email: 'anjali@example.com',
-    amount: '₹3,299',
-    status: 'Delivered',
-    date: '1 hour ago',
-  },
-  {
-    id: 'GCJ2W6P9',
-    customer: 'Vikram Singh',
-    email: 'vikram@example.com',
-    amount: '₹999',
-    status: 'Pending',
-    date: '2 hours ago',
-  },
-  {
-    id: 'GCI9R4Q7',
-    customer: 'Neha Gupta',
-    email: 'neha@example.com',
-    amount: '₹4,599',
-    status: 'Processing',
-    date: '3 hours ago',
-  },
-]
-
-const topProducts = [
-  { name: 'Rose Glow Serum', sold: 234, revenue: '₹2,34,000', stock: 45 },
-  { name: 'Vitamin C Moisturizer', sold: 189, revenue: '₹1,89,000', stock: 32 },
-  { name: 'Hyaluronic Acid Cream', sold: 156, revenue: '₹1,56,000', stock: 67 },
-  { name: 'Niacinamide Toner', sold: 134, revenue: '₹1,34,000', stock: 12 },
-  { name: 'Retinol Night Cream', sold: 98, revenue: '₹98,000', stock: 89 },
-]
+interface RecentOrder {
+  id: string
+  orderNumber: string
+  customer: { name: string; email: string }
+  total: number
+  status: string
+  createdAt: string
+}
 
 const statusColors: Record<string, string> = {
-  Pending: 'bg-yellow-100 text-yellow-800',
-  Processing: 'bg-blue-100 text-blue-800',
-  Shipped: 'bg-purple-100 text-purple-800',
-  Delivered: 'bg-green-100 text-green-800',
-  Cancelled: 'bg-red-100 text-red-800',
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  CONFIRMED: 'bg-blue-100 text-blue-800',
+  PROCESSING: 'bg-indigo-100 text-indigo-800',
+  SHIPPED: 'bg-purple-100 text-purple-800',
+  DELIVERED: 'bg-green-100 text-green-800',
+  CANCELLED: 'bg-red-100 text-red-800',
 }
 
 export default function AdminDashboard() {
-  const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [stats, setStats] = useState<DashboardStats>({
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalCustomers: 0,
+    totalProducts: 0,
+  })
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
 
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => setIsLoading(false), 500)
-    return () => clearTimeout(timer)
+    fetchDashboardData()
   }, [])
 
-  if (isLoading) {
+  const fetchDashboardData = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      // Fetch stats in parallel
+      const [ordersRes, productsRes, customersRes] = await Promise.all([
+        fetch('/api/v1/admin/orders?limit=5'),
+        fetch('/api/v1/admin/products?limit=1'),
+        fetch('/api/v1/admin/customers?limit=1'),
+      ])
+
+      const ordersData = await ordersRes.json()
+      const productsData = await productsRes.json()
+      const customersData = await customersRes.json()
+
+      // Calculate stats
+      let totalRevenue = 0
+      if (ordersData.success && ordersData.data.orders) {
+        ordersData.data.orders.forEach((order: any) => {
+          if (order.paymentStatus === 'PAID') {
+            totalRevenue += order.total
+          }
+        })
+        setRecentOrders(ordersData.data.orders.slice(0, 5))
+      }
+
+      setStats({
+        totalRevenue,
+        totalOrders: ordersData.pagination?.total || ordersData.data?.orders?.length || 0,
+        totalProducts: productsData.pagination?.total || productsData.data?.products?.length || 0,
+        totalCustomers: customersData.pagination?.total || customersData.data?.customers?.length || 0,
+      })
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err)
+      setError('Failed to load dashboard data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amount)
+  }
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins} min ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+  }
+
+  if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-32 bg-gray-200 rounded-xl animate-pulse" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="h-96 bg-gray-200 rounded-xl animate-pulse" />
-          <div className="h-96 bg-gray-200 rounded-xl animate-pulse" />
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-pink-500" />
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500">Welcome back! Here's what's happening today.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <select className="px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-pink-500">
-            <option>Last 7 days</option>
-            <option>Last 30 days</option>
-            <option>Last 90 days</option>
-            <option>This year</option>
-          </select>
-        </div>
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-gray-500">Welcome back! Here's what's happening with your store.</p>
       </div>
 
-      {/* Stats grid */}
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" />
+          {error}
+        </div>
+      )}
+
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <div
-            key={stat.name}
-            className="bg-white rounded-xl p-6 shadow-sm border border-gray-100"
-          >
-            <div className="flex items-center justify-between">
-              <div className={`p-3 rounded-lg ${stat.color}`}>
-                <stat.icon className="w-6 h-6 text-white" />
-              </div>
-              <span
-                className={`flex items-center gap-1 text-sm font-medium ${
-                  stat.trend === 'up' ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {stat.trend === 'up' ? (
-                  <TrendingUp className="w-4 h-4" />
-                ) : (
-                  <TrendingDown className="w-4 h-4" />
-                )}
-                {stat.change}
-              </span>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Total Revenue</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">
+                {formatCurrency(stats.totalRevenue)}
+              </p>
             </div>
-            <div className="mt-4">
-              <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-              <p className="text-sm text-gray-500">{stat.name}</p>
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <IndianRupee className="w-6 h-6 text-green-600" />
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Charts and tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Orders */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between p-6 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
-            <Link
-              href="/admin/orders"
-              className="flex items-center gap-1 text-sm text-pink-600 hover:text-pink-700"
-            >
-              View all <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {recentOrders.map((order) => (
-              <div
-                key={order.id}
-                className="flex items-center justify-between p-4 hover:bg-gray-50"
-              >
-                <div className="flex items-center gap-4">
-                  <div>
-                    <p className="font-medium text-gray-900">{order.customer}</p>
-                    <p className="text-sm text-gray-500">{order.id}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                      statusColors[order.status]
-                    }`}
-                  >
-                    {order.status}
-                  </span>
-                  <div className="text-right">
-                    <p className="font-medium text-gray-900">{order.amount}</p>
-                    <p className="text-xs text-gray-500">{order.date}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
 
-        {/* Top Products */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center justify-between p-6 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-900">Top Products</h2>
-            <Link
-              href="/admin/products"
-              className="flex items-center gap-1 text-sm text-pink-600 hover:text-pink-700"
-            >
-              View all <ArrowRight className="w-4 h-4" />
-            </Link>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Total Orders</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalOrders}</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              <ShoppingCart className="w-6 h-6 text-blue-600" />
+            </div>
           </div>
-          <div className="p-6">
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Customers</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalCustomers}</p>
+            </div>
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <Users className="w-6 h-6 text-purple-600" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Products</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalProducts}</p>
+            </div>
+            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+              <Package className="w-6 h-6 text-orange-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Orders */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
+          <Link
+            href="/admin/orders"
+            className="text-sm text-pink-600 hover:text-pink-700 flex items-center gap-1"
+          >
+            View All
+            <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
+
+        {recentOrders.length === 0 ? (
+          <div className="p-12 text-center">
+            <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500">No orders yet</p>
+            <p className="text-sm text-gray-400 mt-1">Orders will appear here when customers make purchases</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
             <table className="w-full">
-              <thead>
-                <tr className="text-left text-xs text-gray-500 uppercase tracking-wider">
-                  <th className="pb-3">Product</th>
-                  <th className="pb-3">Sold</th>
-                  <th className="pb-3">Revenue</th>
-                  <th className="pb-3">Stock</th>
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Order
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Customer
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
+                    Date
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {topProducts.map((product, idx) => (
-                  <tr key={idx} className="text-sm">
-                    <td className="py-3 font-medium text-gray-900">{product.name}</td>
-                    <td className="py-3 text-gray-600">{product.sold}</td>
-                    <td className="py-3 text-gray-600">{product.revenue}</td>
-                    <td className="py-3">
+                {recentOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <Link
+                        href={`/admin/orders/${order.id}`}
+                        className="font-medium text-pink-600 hover:text-pink-700"
+                      >
+                        #{order.orderNumber || order.id.slice(0, 8)}
+                      </Link>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{order.customer.name}</p>
+                        <p className="text-sm text-gray-500">{order.customer.email}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 font-medium text-gray-900">
+                      {formatCurrency(order.total)}
+                    </td>
+                    <td className="px-6 py-4">
                       <span
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          product.stock < 20
-                            ? 'bg-red-100 text-red-700'
-                            : product.stock < 50
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-green-100 text-green-700'
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          statusColors[order.status] || 'bg-gray-100 text-gray-800'
                         }`}
                       >
-                        {product.stock}
+                        {order.status}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {formatDate(order.createdAt)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Link
-            href="/admin/products/new"
-            className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:border-pink-300 hover:bg-pink-50 transition-colors"
-          >
-            <Package className="w-8 h-8 text-pink-600" />
-            <span className="text-sm font-medium">Add Product</span>
-          </Link>
-          <Link
-            href="/admin/orders"
-            className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:border-pink-300 hover:bg-pink-50 transition-colors"
-          >
-            <ShoppingCart className="w-8 h-8 text-pink-600" />
-            <span className="text-sm font-medium">View Orders</span>
-          </Link>
-          <Link
-            href="/admin/customers"
-            className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:border-pink-300 hover:bg-pink-50 transition-colors"
-          >
-            <Users className="w-8 h-8 text-pink-600" />
-            <span className="text-sm font-medium">Customers</span>
-          </Link>
-          <Link
-            href="/admin/reviews"
-            className="flex flex-col items-center gap-2 p-4 border border-gray-200 rounded-lg hover:border-pink-300 hover:bg-pink-50 transition-colors"
-          >
-            <Star className="w-8 h-8 text-pink-600" />
-            <span className="text-sm font-medium">Reviews</span>
-          </Link>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Link
+          href="/admin/products/new"
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:border-pink-200 hover:shadow-md transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center group-hover:bg-pink-200 transition-colors">
+              <Package className="w-6 h-6 text-pink-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">Add New Product</p>
+              <p className="text-sm text-gray-500">Create a new product listing</p>
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/admin/categories"
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:border-pink-200 hover:shadow-md transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+              <TrendingUp className="w-6 h-6 text-blue-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">Manage Categories</p>
+              <p className="text-sm text-gray-500">Organize your products</p>
+            </div>
+          </div>
+        </Link>
+
+        <Link
+          href="/admin/orders"
+          className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:border-pink-200 hover:shadow-md transition-all group"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
+              <ShoppingCart className="w-6 h-6 text-green-600" />
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900">View Orders</p>
+              <p className="text-sm text-gray-500">Manage customer orders</p>
+            </div>
+          </div>
+        </Link>
       </div>
     </div>
-  )
-}
-
-function Star(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-    </svg>
   )
 }

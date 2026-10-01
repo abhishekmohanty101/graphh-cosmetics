@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import {
   ArrowLeft,
@@ -12,18 +13,16 @@ import {
   Trash2,
   Plus,
   GripVertical,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
 } from 'lucide-react'
 
-const categories = [
-  { id: '1', name: 'Serums' },
-  { id: '2', name: 'Moisturizers' },
-  { id: '3', name: 'Cleansers' },
-  { id: '4', name: 'Toners' },
-  { id: '5', name: 'Sunscreen' },
-  { id: '6', name: 'Night Care' },
-  { id: '7', name: 'Eye Care' },
-  { id: '8', name: 'Lip Care' },
-]
+interface Category {
+  id: string
+  name: string
+  slug: string
+}
 
 interface ProductFormData {
   name: string
@@ -52,11 +51,16 @@ interface ProductFormData {
 
 export default function NewProductPage() {
   const router = useRouter()
+  const { data: session, status } = useSession()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [images, setImages] = useState<string[]>([])
   const [variants, setVariants] = useState<{ name: string; price: string; inventory: string }[]>([])
   const [newTag, setNewTag] = useState('')
   const [newBenefit, setNewBenefit] = useState('')
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -82,6 +86,25 @@ export default function NewProductPage() {
     isNew: true,
     hasVariants: false,
   })
+
+  // Fetch categories on mount
+  useEffect(() => {
+    fetchCategories()
+  }, [])
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/v1/admin/categories')
+      const data = await res.json()
+      if (data.success) {
+        setCategories(data.data.categories)
+      }
+    } catch (err) {
+      console.error('Failed to fetch categories:', err)
+    } finally {
+      setLoadingCategories(false)
+    }
+  }
 
   const generateSlug = (name: string) => {
     return name
@@ -160,20 +183,82 @@ export default function NewProductPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setError('')
+    setSuccess('')
+
+    // Validation
+    if (!formData.name.trim()) {
+      setError('Product name is required')
+      setIsSubmitting(false)
+      return
+    }
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      setError('Price must be greater than 0')
+      setIsSubmitting(false)
+      return
+    }
+    if (!formData.categoryId) {
+      setError('Please select a category')
+      setIsSubmitting(false)
+      return
+    }
 
     try {
-      // TODO: Call API to create product
-      console.log('Creating product:', { ...formData, images, variants })
-      
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      
-      router.push('/admin/products')
+      const res = await fetch('/api/v1/admin/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          slug: formData.slug || generateSlug(formData.name),
+          shortDesc: formData.shortDesc || null,
+          description: formData.description || null,
+          price: formData.price,
+          comparePrice: formData.comparePrice || null,
+          costPrice: formData.costPrice || null,
+          images: images,
+          categoryId: formData.categoryId,
+          tags: formData.tags,
+          sku: formData.sku || null,
+          barcode: formData.barcode || null,
+          inventory: formData.inventory,
+          lowStockAlert: formData.lowStockAlert,
+          hasVariants: formData.hasVariants,
+          variants: formData.hasVariants ? variants : [],
+          ingredients: formData.ingredients || null,
+          howToUse: formData.howToUse || null,
+          benefits: formData.benefits,
+          metaTitle: formData.metaTitle || null,
+          metaDesc: formData.metaDesc || null,
+          isActive: formData.isActive,
+          isFeatured: formData.isFeatured,
+          isNewArrival: formData.isNew,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        setSuccess('Product created successfully!')
+        setTimeout(() => {
+          router.push('/admin/products')
+        }, 1500)
+      } else {
+        setError(data.error || 'Failed to create product')
+      }
     } catch (error) {
       console.error('Error creating product:', error)
+      setError('Something went wrong. Please try again.')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (status === 'loading') {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-pink-500" />
+      </div>
+    )
   }
 
   return (
@@ -205,11 +290,34 @@ export default function NewProductPage() {
             disabled={isSubmitting}
             className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 flex items-center gap-2 disabled:opacity-50"
           >
-            <Save className="w-4 h-4" />
-            {isSubmitting ? 'Saving...' : 'Save Product'}
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save Product
+              </>
+            )}
           </button>
         </div>
       </div>
+
+      {/* Alerts */}
+      {error && (
+        <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-2">
+          <AlertCircle className="w-5 h-5" />
+          {error}
+        </div>
+      )}
+      {success && (
+        <div className="mb-6 bg-green-50 text-green-600 p-4 rounded-lg flex items-center gap-2">
+          <CheckCircle className="w-5 h-5" />
+          {success}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -280,6 +388,9 @@ export default function NewProductPage() {
             {/* Images */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Product Images</h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Note: Image upload to cloud storage coming soon. For now, add image URLs directly.
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {images.map((image, index) => (
                   <div
@@ -300,23 +411,24 @@ export default function NewProductPage() {
                     </button>
                   </div>
                 ))}
-                <label className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-pink-500 transition-colors">
-                  <ImagePlus className="w-8 h-8 text-gray-400 mb-2" />
-                  <span className="text-sm text-gray-500">Add Image</span>
+                <div className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center p-2">
                   <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) {
-                        // TODO: Upload to storage
-                        const url = URL.createObjectURL(file)
-                        setImages((prev) => [...prev, url])
+                    type="url"
+                    placeholder="Paste image URL"
+                    className="w-full text-xs px-2 py-1 border rounded mb-2"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const url = (e.target as HTMLInputElement).value.trim()
+                        if (url) {
+                          setImages((prev) => [...prev, url])
+                          ;(e.target as HTMLInputElement).value = ''
+                        }
                       }
                     }}
                   />
-                </label>
+                  <span className="text-xs text-gray-400">Press Enter to add</span>
+                </div>
               </div>
             </div>
 
@@ -646,21 +758,35 @@ export default function NewProductPage() {
 
             {/* Category */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Category</h2>
-              <select
-                name="categoryId"
-                value={formData.categoryId}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
-              >
-                <option value="">Select category</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Category *</h2>
+              {loadingCategories ? (
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading categories...
+                </div>
+              ) : categories.length === 0 ? (
+                <div className="text-sm text-gray-500">
+                  No categories found.{' '}
+                  <Link href="/admin/categories" className="text-pink-600 hover:underline">
+                    Create one first
+                  </Link>
+                </div>
+              ) : (
+                <select
+                  name="categoryId"
+                  value={formData.categoryId}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500"
+                >
+                  <option value="">Select category</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Tags */}
