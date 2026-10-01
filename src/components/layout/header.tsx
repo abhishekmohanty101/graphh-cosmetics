@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { ShoppingBag, Heart, User, Menu, X, ChevronDown, MapPin, Headphones } from 'lucide-react'
+import { ShoppingBag, Heart, User, Menu, X, ChevronDown, MapPin, Headphones, LogOut } from 'lucide-react'
+import { useSession, signOut } from 'next-auth/react'
 import { useCartStore } from '@/stores/cart-store'
 import { useWishlistStore } from '@/stores/wishlist-store'
 import { MiniCart } from '@/components/cart/mini-cart'
@@ -20,7 +21,9 @@ const categories = [
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
   
+  const { data: session, status } = useSession()
   const { openCart, getItemCount } = useCartStore()
   const { items: wishlistItems } = useWishlistStore()
 
@@ -30,6 +33,9 @@ export function Header() {
 
   const cartCount = mounted ? getItemCount() : 0
   const wishlistCount = mounted ? wishlistItems.length : 0
+  const isLoggedIn = status === 'authenticated' && session?.user
+  const userName = session?.user?.name || session?.user?.email?.split('@')[0] || 'User'
+  const userRole = (session?.user as any)?.role
 
   return (
     <>
@@ -81,16 +87,100 @@ export function Header() {
               {/* Right Actions */}
               <div className="flex items-center gap-1 sm:gap-2 ml-auto">
                 {/* Account */}
-                <Link 
-                  href="/login" 
-                  className="hidden sm:flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <User className="w-5 h-5 text-gray-600" />
-                  <span className="hidden md:block text-left">
-                    <span className="block text-[10px] text-gray-500">Hello, Sign in</span>
-                    <span className="block text-sm font-medium text-gray-900 -mt-0.5">Account</span>
-                  </span>
-                </Link>
+                {isLoggedIn ? (
+                  <div className="relative">
+                    <button 
+                      onClick={() => setShowUserMenu(!showUserMenu)}
+                      className="hidden sm:flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-pink-500 flex items-center justify-center text-white font-medium">
+                        {userName.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="hidden md:block text-left">
+                        <span className="block text-[10px] text-gray-500">Hello, {userName.split(' ')[0]}</span>
+                        <span className="block text-sm font-medium text-gray-900 -mt-0.5">Account</span>
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
+                    </button>
+                    
+                    {/* User Dropdown Menu */}
+                    {showUserMenu && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)} />
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border z-20">
+                          <div className="p-3 border-b">
+                            <p className="font-medium text-gray-900">{userName}</p>
+                            <p className="text-sm text-gray-500">{session?.user?.email}</p>
+                          </div>
+                          <div className="py-2">
+                            <Link 
+                              href="/account" 
+                              onClick={() => setShowUserMenu(false)}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            >
+                              My Account
+                            </Link>
+                            <Link 
+                              href="/account/orders" 
+                              onClick={() => setShowUserMenu(false)}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            >
+                              My Orders
+                            </Link>
+                            <Link 
+                              href="/account/addresses" 
+                              onClick={() => setShowUserMenu(false)}
+                              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                            >
+                              Addresses
+                            </Link>
+                            {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+                              <Link 
+                                href="/admin" 
+                                onClick={() => setShowUserMenu(false)}
+                                className="block px-4 py-2 text-sm text-pink-600 hover:bg-pink-50"
+                              >
+                                Admin Panel
+                              </Link>
+                            )}
+                            {(userRole === 'EMPLOYEE' || userRole === 'ORDER_MANAGER' || userRole === 'PRODUCT_MANAGER' || userRole === 'SUPPORT_AGENT') && (
+                              <Link 
+                                href="/staff" 
+                                onClick={() => setShowUserMenu(false)}
+                                className="block px-4 py-2 text-sm text-cyan-600 hover:bg-cyan-50"
+                              >
+                                Staff Portal
+                              </Link>
+                            )}
+                          </div>
+                          <div className="border-t py-2">
+                            <button 
+                              onClick={() => {
+                                setShowUserMenu(false)
+                                signOut({ callbackUrl: '/' })
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <LogOut className="w-4 h-4" />
+                              Sign Out
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <Link 
+                    href="/login" 
+                    className="hidden sm:flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <User className="w-5 h-5 text-gray-600" />
+                    <span className="hidden md:block text-left">
+                      <span className="block text-[10px] text-gray-500">Hello, Sign in</span>
+                      <span className="block text-sm font-medium text-gray-900 -mt-0.5">Account</span>
+                    </span>
+                  </Link>
+                )}
 
                 {/* Wishlist */}
                 <Link 
@@ -197,14 +287,58 @@ export function Header() {
                   <span className="font-medium">Bestsellers</span>
                 </Link>
                 <div className="border-t my-3" />
-                <Link
-                  href="/login"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg"
-                >
-                  <User className="w-5 h-5" />
-                  <span className="font-medium">Login / Register</span>
-                </Link>
+                {isLoggedIn ? (
+                  <>
+                    <div className="px-4 py-3">
+                      <p className="font-medium text-gray-900">{userName}</p>
+                      <p className="text-sm text-gray-500">{session?.user?.email}</p>
+                    </div>
+                    <Link
+                      href="/account"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg"
+                    >
+                      <User className="w-5 h-5" />
+                      <span className="font-medium">My Account</span>
+                    </Link>
+                    <Link
+                      href="/account/orders"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg"
+                    >
+                      <ShoppingBag className="w-5 h-5" />
+                      <span className="font-medium">My Orders</span>
+                    </Link>
+                    {(userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="flex items-center gap-3 px-4 py-3 text-pink-600 hover:bg-pink-50 rounded-lg"
+                      >
+                        <span className="font-medium">Admin Panel</span>
+                      </Link>
+                    )}
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false)
+                        signOut({ callbackUrl: '/' })
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg w-full"
+                    >
+                      <LogOut className="w-5 h-5" />
+                      <span className="font-medium">Sign Out</span>
+                    </button>
+                  </>
+                ) : (
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-lg"
+                  >
+                    <User className="w-5 h-5" />
+                    <span className="font-medium">Login / Register</span>
+                  </Link>
+                )}
                 <Link
                   href="/track-order"
                   onClick={() => setMobileMenuOpen(false)}
