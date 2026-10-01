@@ -61,6 +61,7 @@ export default function NewProductPage() {
   const [loadingCategories, setLoadingCategories] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [showPreview, setShowPreview] = useState(false)
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
@@ -280,6 +281,7 @@ export default function NewProductPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
+            onClick={() => setShowPreview(true)}
             className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-2"
           >
             <Eye className="w-4 h-4" />
@@ -830,6 +832,155 @@ export default function NewProductPage() {
           </div>
         </div>
       </form>
+
+      {/* Preview Modal */}
+      {showPreview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Product Preview</h2>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Images */}
+                <div>
+                  <div className="aspect-square bg-gray-100 rounded-xl overflow-hidden mb-4">
+                    {images.length > 0 ? (
+                      <img
+                        src={images[0]}
+                        alt={formData.name || 'Product'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400">
+                        <ImagePlus className="w-16 h-16" />
+                      </div>
+                    )}
+                  </div>
+                  {images.length > 1 && (
+                    <div className="grid grid-cols-4 gap-2">
+                      {images.slice(1, 5).map((img, i) => (
+                        <div key={i} className="aspect-square bg-gray-100 rounded-lg overflow-hidden">
+                          <img src={img} alt="" className="w-full h-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Details */}
+                <div>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {formData.isNew && (
+                      <span className="px-2 py-1 bg-pink-100 text-pink-700 text-xs rounded-full">New</span>
+                    )}
+                    {formData.isFeatured && (
+                      <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">Featured</span>
+                    )}
+                  </div>
+                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                    {formData.name || 'Product Name'}
+                  </h1>
+                  <p className="text-gray-500 mb-4">
+                    {formData.shortDesc || 'Short description will appear here'}
+                  </p>
+                  <div className="flex items-baseline gap-3 mb-6">
+                    <span className="text-3xl font-bold text-pink-600">
+                      ₹{formData.price || '0'}
+                    </span>
+                    {formData.comparePrice && (
+                      <span className="text-lg text-gray-400 line-through">
+                        ₹{formData.comparePrice}
+                      </span>
+                    )}
+                  </div>
+
+                  {formData.hasVariants && variants.length > 0 && (
+                    <div className="mb-6">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Variants</p>
+                      <div className="flex flex-wrap gap-2">
+                        {variants.map((v, i) => (
+                          <span key={i} className="px-3 py-1 border rounded-lg text-sm">
+                            {v.name || `Variant ${i + 1}`} - ₹{v.price || '0'}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.tags.length > 0 && (
+                    <div className="mb-6">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Tags</p>
+                      <div className="flex flex-wrap gap-2">
+                        {formData.tags.map((tag) => (
+                          <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.benefits.length > 0 && (
+                    <div className="mb-6">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Benefits</p>
+                      <ul className="space-y-1">
+                        {formData.benefits.map((benefit) => (
+                          <li key={benefit} className="flex items-center gap-2 text-sm text-gray-600">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            {benefit}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button className="flex-1 px-6 py-3 bg-pink-600 text-white rounded-xl font-medium">
+                      Add to Cart
+                    </button>
+                    <button className="px-6 py-3 border border-gray-200 rounded-xl">
+                      ♡
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description tabs */}
+              {(formData.description || formData.ingredients || formData.howToUse) && (
+                <div className="mt-8 pt-8 border-t">
+                  <div className="prose prose-sm max-w-none">
+                    {formData.description && (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-2">Description</h3>
+                        <p className="text-gray-600 whitespace-pre-wrap">{formData.description}</p>
+                      </div>
+                    )}
+                    {formData.ingredients && (
+                      <div className="mb-6">
+                        <h3 className="text-lg font-semibold mb-2">Ingredients</h3>
+                        <p className="text-gray-600 whitespace-pre-wrap">{formData.ingredients}</p>
+                      </div>
+                    )}
+                    {formData.howToUse && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-2">How to Use</h3>
+                        <p className="text-gray-600 whitespace-pre-wrap">{formData.howToUse}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
