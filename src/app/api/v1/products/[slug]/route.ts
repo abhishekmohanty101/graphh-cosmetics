@@ -1,100 +1,61 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/db'
-import { successResponse, notFoundResponse, serverErrorResponse } from '@/lib/api'
+import { successResponse, errorResponse, notFoundResponse } from '@/lib/api/response'
 
-// GET /api/v1/products/[slug] - Get single product by slug
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { slug: string } }
-) {
+export async function GET(request: NextRequest, { params }: { params: { slug: string } }) {
   try {
     const product = await prisma.product.findUnique({
-      where: { slug: params.slug, isActive: true },
+      where: { slug: params.slug },
       include: {
-        category: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-        variants: {
-          where: { isActive: true },
-          orderBy: { sortOrder: 'asc' },
-          select: {
-            id: true,
-            sku: true,
-            name: true,
-            price: true,
-            comparePrice: true,
-            inventory: true,
-            attributes: true,
-            images: true,
-          },
-        },
+        category: { select: { id: true, name: true, slug: true } },
+        variants: true,
         reviews: {
           where: { isApproved: true },
-          orderBy: { createdAt: 'desc' },
+          include: { user: { select: { name: true, avatar: true } } },
           take: 10,
-          select: {
-            id: true,
-            rating: true,
-            title: true,
-            comment: true,
-            images: true,
-            isVerified: true,
-            helpful: true,
-            createdAt: true,
-            user: {
-              select: {
-                name: true,
-                
-              },
-            },
-          },
+          orderBy: { createdAt: 'desc' },
         },
       },
     })
 
-    if (!product) {
-      return notFoundResponse('Product')
-    }
+    if (!product) return notFoundResponse('Product')
 
-    // Transform for frontend
-    const transformedProduct = {
+    // Calculate avg rating
+    const ratings = product.reviews.map((r) => r.rating)
+    const avgRating = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : 0
+
+    return successResponse({
       id: product.id,
       slug: product.slug,
       name: product.name,
-      shortDesc: product.shortDescription,
       description: product.description,
-      price: product.price,
-      comparePrice: product.comparePrice,
+      shortDesc: product.shortDesc,
+      price: Number(product.price),
+      comparePrice: product.comparePrice ? Number(product.comparePrice) : null,
       images: product.images,
       category: product.category,
-      rating: product.avgRating,
-      reviewCount: product.reviewCount,
-      inStock: product.inventory > 0,
-      inventory: product.inventory,
-      sku: product.sku,
-      hasVariants: product.variants.length > 0,
-      variants: product.variants.map((v) => ({
-        id: v.id,
-        sku: v.sku,
-        name: v.name,
-        price: v.price,
-        comparePrice: v.comparePrice,
-        inventory: v.inventory,
-        attributes: v.attributes,
-        images: v.images,
-      })),
       ingredients: product.ingredients,
       howToUse: product.howToUse,
       benefits: product.benefits,
+      tags: product.tags,
+      rating: avgRating,
+      reviewCount: product.reviews.length,
+      inventory: product.inventory,
+      hasVariants: product.hasVariants,
+      variants: product.variants.map((v) => ({
+        id: v.id,
+        name: v.name,
+        sku: v.sku,
+        price: v.price ? Number(v.price) : null,
+        inventory: v.inventory,
+        attributes: v.attributes,
+        image: v.image,
+      })),
       isFeatured: product.isFeatured,
-      isNew: product.isNew,
-      isBestseller: product.isFeatured,
+      isNewArrival: product.isNewArrival,
+      isBestseller: product.isBestseller,
       metaTitle: product.metaTitle,
-      metaDescription: product.metaDescription,
+      metaDesc: product.metaDesc,
       reviews: product.reviews.map((r) => ({
         id: r.id,
         rating: r.rating,
@@ -104,14 +65,11 @@ export async function GET(
         isVerified: r.isVerified,
         helpful: r.helpful,
         createdAt: r.createdAt.toISOString(),
-        user: {
-          name: r.user.name || 'Anonymous',
-        },
+        user: { name: r.user.name || 'Anonymous' },
       })),
-    }
-
-    return successResponse(transformedProduct)
+    })
   } catch (error) {
-    return serverErrorResponse(error)
+    console.error('Get product error:', error)
+    return errorResponse('Failed to fetch product', 500)
   }
 }

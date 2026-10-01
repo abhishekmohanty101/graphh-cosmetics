@@ -1,24 +1,11 @@
 import { NextAuthOptions } from 'next-auth'
-import { PrismaAdapter } from '@auth/prisma-adapter'
-import GoogleProvider from 'next-auth/providers/google'
 import CredentialsProvider from 'next-auth/providers/credentials'
-import bcrypt from 'bcryptjs'
+import { compare } from 'bcryptjs'
 import { prisma } from '@/lib/db'
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma) as any,
-  
   providers: [
-    // Google OAuth
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      allowDangerousEmailAccountLinking: true,
-    }),
-    
-    // Email/Password
     CredentialsProvider({
-      id: 'credentials',
       name: 'credentials',
       credentials: {
         email: { label: 'Email', type: 'email' },
@@ -26,7 +13,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error('Email and password required')
+          throw new Error('Missing credentials')
         }
 
         const user = await prisma.user.findUnique({
@@ -34,100 +21,50 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (!user || !user.passwordHash) {
-          throw new Error('Invalid email or password')
+          throw new Error('Invalid credentials')
         }
 
         if (user.isBlocked) {
-          throw new Error('Your account has been blocked. Please contact support.')
+          throw new Error('Account is blocked')
         }
 
-        const isValid = await bcrypt.compare(credentials.password, user.passwordHash)
-
+        const isValid = await compare(credentials.password, user.passwordHash)
         if (!isValid) {
-          throw new Error('Invalid email or password')
+          throw new Error('Invalid credentials')
         }
 
         return {
           id: user.id,
           email: user.email,
           name: user.name,
-          image: user.avatar,
           role: user.role,
         }
       },
     }),
   ],
-
   session: {
     strategy: 'jwt',
-    maxAge: 7 * 24 * 60 * 60, // 7 days
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-
-  jwt: {
-    maxAge: 7 * 24 * 60 * 60, // 7 days
-  },
-
   pages: {
-    signIn: '/auth/login',
-    signOut: '/auth/logout',
-    error: '/auth/error',
-    verifyRequest: '/auth/verify',
+    signIn: '/login',
+    error: '/login',
   },
-
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      // Initial sign in
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id
         token.role = user.role
       }
-
-      // Session update
-      if (trigger === 'update' && session) {
-        token.name = session.name
-        token.picture = session.image
-      }
-
       return token
     },
-
     async session({ session, token }) {
-      if (token && session.user) {
+      if (session.user) {
         session.user.id = token.id as string
-        session.user.role = token.role as string
+        ;(session.user as any).role = token.role
       }
       return session
     },
-
-    async signIn({ user, account }) {
-      // Allow OAuth sign in even if user exists with different provider
-      if (account?.provider !== 'credentials') {
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email! },
-        })
-
-        if (existingUser?.isBlocked) {
-          return false
-        }
-      }
-      return true
-    },
   },
-
-  events: {
-    async signIn({ user, isNewUser }) {
-      if (isNewUser) {
-        // Log new user registration
-        console.log(`New user registered: ${user.email}`)
-      }
-
-      // Update last login
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { updatedAt: new Date() },
-      })
-    },
-  },
-
-  debug: process.env.NODE_ENV === 'development',
+  secret: process.env.NEXTAUTH_SECRET,
 }

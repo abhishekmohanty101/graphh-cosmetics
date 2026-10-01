@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { CheckCircle, Package, Truck, CreditCard, ChevronRight } from 'lucide-react'
@@ -31,7 +31,7 @@ interface OrderDetails {
   estimatedDelivery: string
 }
 
-export default function CheckoutSuccessPage() {
+function CheckoutSuccessContent() {
   const searchParams = useSearchParams()
   const orderId = searchParams.get('orderId')
   const [order, setOrder] = useState<OrderDetails | null>(null)
@@ -98,7 +98,7 @@ export default function CheckoutSuccessPage() {
 
         {/* Order Timeline */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h2 className="font-semibold text-lg mb-4">What's Next?</h2>
+          <h2 className="font-semibold text-lg mb-4">What&apos;s Next?</h2>
           <div className="flex items-center justify-between">
             <div className="flex flex-col items-center">
               <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center mb-2">
@@ -223,5 +223,17 @@ export default function CheckoutSuccessPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CheckoutSuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-600"></div>
+      </div>
+    }>
+      <CheckoutSuccessContent />
+    </Suspense>
   )
 }

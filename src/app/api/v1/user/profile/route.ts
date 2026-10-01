@@ -1,122 +1,43 @@
 import { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
-import { authOptions } from '@/lib/auth/auth-options'
-import {
-  successResponse,
-  errorResponse,
-  unauthorizedResponse,
-  validationErrorResponse,
-  serverErrorResponse,
-} from '@/lib/api'
-import { z } from 'zod'
+import { successResponse, errorResponse, unauthorizedResponse } from '@/lib/api/response'
 
-const updateProfileSchema = z.object({
-  name: z.string().min(1, 'Name is required').optional(),
-  phone: z.string().regex(/^[6-9]\d{9}$/, 'Invalid phone number').optional().nullable(),
-  dateOfBirth: z.string().optional().nullable(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional().nullable(),
-})
-
-// GET /api/v1/user/profile - Get user profile
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return unauthorizedResponse()
-    }
+    if (!session?.user?.id) return unauthorizedResponse()
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        avatar: true,
-        dateOfBirth: true,
-        gender: true,
-        emailVerified: true,
-        createdAt: true,
-      },
+      select: { id: true, email: true, name: true, phone: true, avatar: true, isVerified: true, createdAt: true },
     })
 
-    if (!user) {
-      return errorResponse('User not found', 404)
-    }
+    if (!user) return errorResponse('User not found', 404)
 
-    return successResponse({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      phone: user.phone,
-      image: user.avatar,
-      dateOfBirth: user.dateOfBirth,
-      gender: user.gender,
-      emailVerified: !!user.emailVerified,
-      memberSince: user.createdAt,
-    })
+    return successResponse(user)
   } catch (error) {
-    return serverErrorResponse(error)
+    return errorResponse('Failed to fetch profile', 500)
   }
 }
 
-// PATCH /api/v1/user/profile - Update user profile
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return unauthorizedResponse()
-    }
+    if (!session?.user?.id) return unauthorizedResponse()
 
     const body = await request.json()
-    const result = updateProfileSchema.safeParse(body)
-    if (!result.success) {
-      return validationErrorResponse(result.error)
-    }
-
-    const data: any = {}
-
-    if (result.data.name !== undefined) data.name = result.data.name
-    if (result.data.phone !== undefined) {
-      // Check if phone is already in use
-      if (result.data.phone) {
-        const existingPhone = await prisma.user.findFirst({
-          where: {
-            phone: result.data.phone,
-            id: { not: session.user.id },
-          },
-        })
-        if (existingPhone) {
-          return errorResponse('Phone number already in use', 400)
-        }
-      }
-      data.phone = result.data.phone
-    }
-    if (result.data.dateOfBirth !== undefined) {
-      data.dateOfBirth = result.data.dateOfBirth ? new Date(result.data.dateOfBirth) : null
-    }
-    if (result.data.gender !== undefined) data.gender = result.data.gender
+    const { name, phone } = body
 
     const user = await prisma.user.update({
       where: { id: session.user.id },
-      data,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        
-        phone: true,
-        dateOfBirth: true,
-        gender: true,
-      },
+      data: { ...(name && { name }), ...(phone && { phone }) },
+      select: { id: true, email: true, name: true, phone: true },
     })
 
-    return successResponse({
-      message: 'Profile updated successfully',
-      user,
-    })
+    return successResponse(user)
   } catch (error) {
-    return serverErrorResponse(error)
+    return errorResponse('Failed to update profile', 500)
   }
 }

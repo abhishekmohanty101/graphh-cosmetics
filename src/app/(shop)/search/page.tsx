@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronRight, Search } from 'lucide-react'
@@ -34,7 +35,7 @@ const allProducts = [
   { id: '41', slug: 'nail-polish-nude', name: 'Nail Polish - Nude Pink', price: 199, images: [], rating: 4.3, reviewCount: 189, inStock: true, category: 'nails' },
 ]
 
-export default function SearchPage() {
+function SearchContent() {
   const searchParams = useSearchParams()
   const query = searchParams.get('q') || ''
 
@@ -65,7 +66,7 @@ export default function SearchPage() {
         <div className="container py-8">
           <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
             {query ? (
-              <>Search results for "<span className="text-pink-500">{query}</span>"</>
+              <>Search results for &quot;<span className="text-pink-500">{query}</span>&quot;</>
             ) : (
               'Search Products'
             )}
@@ -89,7 +90,7 @@ export default function SearchPage() {
             <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 mb-2">No products found</h2>
             <p className="text-gray-500 mb-6">
-              We couldn't find any products matching "{query}". Try a different search term.
+              We couldn&apos;t find any products matching &quot;{query}&quot;. Try a different search term.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button asChild variant="outline">
@@ -115,5 +116,17 @@ export default function SearchPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-600"></div>
+      </div>
+    }>
+      <SearchContent />
+    </Suspense>
   )
 }

@@ -50,16 +50,36 @@ export async function GET(request: NextRequest) {
       _count: true,
     })
 
-    // Revenue by payment method
-    const byPaymentMethod = await prisma.order.groupBy({
-      by: ['paymentMethod'],
+    // Revenue by payment method (from Payment model)
+    const payments = await prisma.payment.findMany({
       where: {
-        createdAt: { gte: startDate },
-        status: { notIn: ['CANCELLED'] },
+        order: {
+          createdAt: { gte: startDate },
+          status: { notIn: ['CANCELLED'] },
+        },
+        status: 'CAPTURED',
       },
-      _sum: { total: true },
-      _count: true,
+      select: {
+        method: true,
+        amount: true,
+      },
     })
+
+    const byPaymentMethod: Record<string, { total: number; count: number }> = {}
+    payments.forEach((p) => {
+      const method = p.method || 'Unknown'
+      if (!byPaymentMethod[method]) {
+        byPaymentMethod[method] = { total: 0, count: 0 }
+      }
+      byPaymentMethod[method].total += Number(p.amount)
+      byPaymentMethod[method].count += 1
+    })
+
+    const paymentMethodStats = Object.entries(byPaymentMethod).map(([method, stats]) => ({
+      method,
+      total: stats.total,
+      count: stats.count,
+    }))
 
     // Revenue by category (top 5)
     const orderItems = await prisma.orderItem.findMany({
@@ -77,7 +97,7 @@ export async function GET(request: NextRequest) {
     const byCategory: Record<string, number> = {}
     orderItems.forEach((item) => {
       const categoryName = item.product?.category?.name || 'Uncategorized'
-      byCategory[categoryName] = (byCategory[categoryName] || 0) + item.total
+      byCategory[categoryName] = (byCategory[categoryName] || 0) + Number(item.total)
     })
 
     const topCategories = Object.entries(byCategory)
@@ -85,8 +105,8 @@ export async function GET(request: NextRequest) {
       .slice(0, 5)
       .map(([name, revenue]) => ({ name, revenue }))
 
-    const currentRevenue = currentOrders._sum.total || 0
-    const previousRevenue = previousOrders._sum.total || 0
+    const currentRevenue = Number(currentOrders._sum.total || 0)
+    const previousRevenue = Number(previousOrders._sum.total || 0)
     const change = previousRevenue > 0 
       ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 
       : 0
@@ -95,10 +115,10 @@ export async function GET(request: NextRequest) {
       period,
       current: {
         revenue: currentRevenue,
-        subtotal: currentOrders._sum.subtotal || 0,
-        discount: currentOrders._sum.discount || 0,
-        shipping: currentOrders._sum.shipping || 0,
-        tax: currentOrders._sum.tax || 0,
+        subtotal: Number(currentOrders._sum.subtotal || 0),
+        discount: Number(currentOrders._sum.discount || 0),
+        shipping: Number(currentOrders._sum.shipping || 0),
+        tax: Number(currentOrders._sum.tax || 0),
         orders: currentOrders._count,
       },
       previous: {
@@ -107,11 +127,7 @@ export async function GET(request: NextRequest) {
       },
       change: Math.round(change * 10) / 10,
       breakdown: {
-        byPaymentMethod: byPaymentMethod.map((pm) => ({
-          method: pm.paymentMethod || 'Unknown',
-          revenue: pm._sum.total || 0,
-          orders: pm._count,
-        })),
+        byPaymentMethod: paymentMethodStats,
         byCategory: topCategories,
       },
     })
