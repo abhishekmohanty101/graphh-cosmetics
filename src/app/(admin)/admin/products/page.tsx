@@ -380,7 +380,7 @@ export default function ProductsPage() {
                               <Eye className="w-4 h-4" />
                             </Link>
                             <Link
-                              href={`/admin/products/${product.id}/edit`}
+                              href={`/admin/products/${product.id}`}
                               className="p-2 text-gray-400 hover:text-blue-600 rounded-lg hover:bg-gray-100"
                               title="Edit"
                             >
