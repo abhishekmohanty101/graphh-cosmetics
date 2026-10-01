@@ -69,8 +69,8 @@ export async function GET(request: NextRequest) {
         comment: review.comment,
         createdAt: review.createdAt,
         author: {
-          name: `${review.user.name} ${review.?.charAt(0) || ''}.`,
-          image: review.user.image,
+          name: review.user.name || 'Anonymous',
+          image: review.user.avatar,
         },
       }))
 

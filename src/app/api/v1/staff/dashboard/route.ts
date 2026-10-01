@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
       recentPendingOrders: recentPendingOrders.map((o) => ({
         id: o.id,
         orderNumber: o.orderNumber,
-        customer: `${o.user.name || ''} ${o. || ''}`.trim() || o.user.email,
+        customer: o.user.name || o.user.email,
         total: Number(o.total),
         status: o.status,
         itemCount: o.items.reduce((sum, i) => sum + i.quantity, 0),

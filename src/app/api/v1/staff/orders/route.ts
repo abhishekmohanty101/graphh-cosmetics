@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       status: order.status,
       total: Number(order.total),
       customer: {
-        name: `${order.user.name || ''} ${order. || ''}`.trim() || order.user.email,
+        name: order.user.name || order.user.email,
         email: order.user.email,
         phone: order.user.phone,
       },

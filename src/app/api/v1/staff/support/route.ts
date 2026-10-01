@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         priority: ticket.priority,
         status: ticket.status,
         customer: {
-          name: `${ticket.user.name || ''} ${ticket. || ''}`.trim() || ticket.user.email,
+          name: ticket.user.name || ticket.user.email,
           email: ticket.user.email,
         },
         orderNumber: ticket.order?.orderNumber || null,

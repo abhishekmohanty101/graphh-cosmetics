@@ -78,7 +78,7 @@ export async function GET(
           subtotal: Number(order.subtotal),
           customer: {
             id: order.user.id,
-            name: `${order.user.name || ''} ${order. || ''}`.trim(),
+            name: order.user.name || 'Unknown',
             email: order.user.email,
             phone: order.user.phone,
           },

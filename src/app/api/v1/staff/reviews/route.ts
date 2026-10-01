@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       isVerified: review.isVerified,
       isApproved: review.isApproved,
       user: {
-        name: `${review.user.name || ''} ${review. || ''}`.trim() || review.user.email,
+        name: review.user.name || review.user.email,
         email: review.user.email,
       },
       product: {

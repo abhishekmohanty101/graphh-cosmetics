@@ -78,7 +78,7 @@ export async function GET(
           status: ticket.status,
           customer: {
             id: ticket.user.id,
-            name: `${ticket.user.name || ''} ${ticket. || ''}`.trim(),
+            name: ticket.user.name || 'Customer',
             email: ticket.user.email,
             phone: ticket.user.phone,
           },
@@ -88,7 +88,7 @@ export async function GET(
             content: msg.content,
             isStaff: msg.isStaff,
             sender: msg.isStaff
-              ? `${msg.user.name || ''} ${msg. || ''}`.trim() || 'Support Agent'
+              ? (msg.user.name || 'Support Agent')
               : 'Customer',
             avatar: msg.user.avatar,
             createdAt: msg.createdAt,

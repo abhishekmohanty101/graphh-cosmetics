@@ -105,7 +105,7 @@ export async function GET(
         helpful: r.helpful,
         createdAt: r.createdAt.toISOString(),
         user: {
-          name: `${r.user.name} ${r.?.charAt(0) || ''}.`,
+          name: r.user.name || 'Anonymous',
         },
       })),
     }
