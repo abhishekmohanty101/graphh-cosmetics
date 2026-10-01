@@ -1,36 +1,113 @@
 'use client'
 
-import { useState } from 'react'
-import { Metadata } from 'next'
-import { User, Mail, Phone, Calendar, Loader2, Check } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { User, Mail, Phone, Calendar, Loader2, Check, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
-// Mock user data
-const currentUser = {
-  firstName: 'Priya',
-  lastName: 'Sharma',
-  email: 'priya.sharma@example.com',
-  phone: '+91 9876543210',
-  dateOfBirth: '1995-06-15',
-  gender: 'female',
+interface UserProfile {
+  id: string
+  name: string | null
+  email: string
+  phone: string | null
+  avatar: string | null
+  isVerified: boolean
+  createdAt: string
 }
 
 export default function ProfilePage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [showSuccess, setShowSuccess] = useState(false)
-  const [formData, setFormData] = useState(currentUser)
+  const [error, setError] = useState('')
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+  })
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login?callbackUrl=/account')
+    } else if (status === 'authenticated') {
+      fetchProfile()
+    }
+  }, [status, router])
+
+  const fetchProfile = async () => {
+    try {
+      const res = await fetch('/api/v1/user/profile')
+      const data = await res.json()
+      if (data.success) {
+        setProfile(data.data)
+        setFormData({
+          name: data.data.name || '',
+          phone: data.data.phone || '',
+        })
+      } else {
+        setError('Failed to load profile')
+      }
+    } catch (err) {
+      setError('Failed to load profile')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleSave = async () => {
     setIsSaving(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setIsSaving(false)
-    setIsEditing(false)
-    setShowSuccess(true)
-    setTimeout(() => setShowSuccess(false), 3000)
+    setError('')
+    
+    try {
+      const res = await fetch('/api/v1/user/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        setProfile({ ...profile!, ...data.data })
+        setIsEditing(false)
+        setShowSuccess(true)
+        setTimeout(() => setShowSuccess(false), 3000)
+      } else {
+        setError(data.error || 'Failed to update profile')
+      }
+    } catch (err) {
+      setError('Something went wrong')
+    } finally {
+      setIsSaving(false)
+    }
   }
+
+  if (status === 'loading' || isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-pink-500" />
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500">Failed to load profile</p>
+        <Button onClick={fetchProfile} className="mt-4">Try Again</Button>
+      </div>
+    )
+  }
+
+  const nameParts = (profile.name || 'User').split(' ')
+  const firstName = nameParts[0] || ''
+  const lastName = nameParts.slice(1).join(' ') || ''
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0) || firstName.charAt(1) || ''}`.toUpperCase()
 
   return (
     <div className="space-y-6">
@@ -52,76 +129,77 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-lg">
+          {error}
+        </div>
+      )}
+
       {/* Profile Card */}
-      <div className="bg-white rounded-lg p-6">
+      <div className="bg-white rounded-lg p-6 shadow-sm">
         {/* Avatar Section */}
         <div className="flex items-center gap-6 pb-6 border-b mb-6">
           <div className="w-24 h-24 bg-gradient-to-br from-pink-400 to-rose-500 rounded-full flex items-center justify-center text-white text-3xl font-bold">
-            {formData.firstName[0]}{formData.lastName[0]}
+            {initials}
           </div>
           <div>
             <h2 className="text-xl font-semibold text-gray-900">
-              {formData.firstName} {formData.lastName}
+              {profile.name || 'User'}
             </h2>
-            <p className="text-gray-500">{formData.email}</p>
-            {isEditing && (
-              <Button variant="outline" size="sm" className="mt-2">
-                Change Photo
-              </Button>
-            )}
+            <p className="text-gray-500">{profile.email}</p>
+            <div className="flex items-center gap-2 mt-1">
+              {profile.isVerified ? (
+                <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                  <Shield className="w-3 h-3" />
+                  Verified
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full">
+                  <Shield className="w-3 h-3" />
+                  Not Verified
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Form Fields */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* First Name */}
-          <div>
+          {/* Name */}
+          <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              First Name
+              Full Name
             </label>
             {isEditing ? (
               <Input
-                value={formData.firstName}
-                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter your full name"
               />
             ) : (
               <div className="flex items-center gap-2 text-gray-900 py-2">
                 <User className="w-4 h-4 text-gray-400" />
-                {formData.firstName}
+                {profile.name || 'Not set'}
               </div>
             )}
           </div>
 
-          {/* Last Name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Last Name
-            </label>
-            {isEditing ? (
-              <Input
-                value={formData.lastName}
-                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-              />
-            ) : (
-              <div className="text-gray-900 py-2">{formData.lastName}</div>
-            )}
-          </div>
-
-          {/* Email */}
+          {/* Email Address */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Email Address
             </label>
             <div className="flex items-center gap-2 text-gray-900 py-2">
               <Mail className="w-4 h-4 text-gray-400" />
-              {formData.email}
-              <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded ml-2">
-                Verified
-              </span>
+              {profile.email}
+              {profile.isVerified && (
+                <Check className="w-4 h-4 text-green-500" />
+              )}
             </div>
           </div>
 
-          {/* Phone */}
+          {/* Phone Number */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Phone Number
@@ -130,69 +208,45 @@ export default function ProfilePage() {
               <Input
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="+91 98765 43210"
               />
             ) : (
               <div className="flex items-center gap-2 text-gray-900 py-2">
                 <Phone className="w-4 h-4 text-gray-400" />
-                {formData.phone}
+                {profile.phone || 'Not set'}
               </div>
             )}
           </div>
 
-          {/* Date of Birth */}
+          {/* Member Since */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Date of Birth
+              Member Since
             </label>
-            {isEditing ? (
-              <Input
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-              />
-            ) : (
-              <div className="flex items-center gap-2 text-gray-900 py-2">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                {new Date(formData.dateOfBirth).toLocaleDateString('en-IN', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Gender */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Gender
-            </label>
-            {isEditing ? (
-              <select
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-pink-500 focus:ring-pink-500"
-              >
-                <option value="female">Female</option>
-                <option value="male">Male</option>
-                <option value="other">Other</option>
-                <option value="prefer-not">Prefer not to say</option>
-              </select>
-            ) : (
-              <div className="text-gray-900 py-2 capitalize">{formData.gender}</div>
-            )}
+            <div className="flex items-center gap-2 text-gray-900 py-2">
+              <Calendar className="w-4 h-4 text-gray-400" />
+              {new Date(profile.createdAt).toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </div>
           </div>
         </div>
 
         {/* Action Buttons */}
         {isEditing && (
-          <div className="flex justify-end gap-3 mt-6 pt-6 border-t">
-            <Button 
-              variant="outline" 
+          <div className="flex gap-3 mt-6 pt-6 border-t">
+            <Button
+              variant="outline"
               onClick={() => {
-                setFormData(currentUser)
                 setIsEditing(false)
+                setFormData({
+                  name: profile.name || '',
+                  phone: profile.phone || '',
+                })
               }}
+              disabled={isSaving}
             >
               Cancel
             </Button>
@@ -210,27 +264,18 @@ export default function ProfilePage() {
         )}
       </div>
 
-      {/* Password Section */}
-      <div className="bg-white rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Password & Security</h3>
+      {/* Password & Security */}
+      <div className="bg-white rounded-lg p-6 shadow-sm">
+        <h3 className="text-lg font-semibold mb-4">Password & Security</h3>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-gray-700">Password</p>
-            <p className="text-sm text-gray-500">Last changed 30 days ago</p>
+            <p className="font-medium">Password</p>
+            <p className="text-sm text-gray-500">Change your account password</p>
           </div>
-          <Button variant="outline">Change Password</Button>
+          <Button variant="outline" onClick={() => router.push('/account/profile')}>
+            Change Password
+          </Button>
         </div>
-      </div>
-
-      {/* Delete Account */}
-      <div className="bg-white rounded-lg p-6 border border-red-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Account</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          Once you delete your account, all of your data will be permanently removed. This action cannot be undone.
-        </p>
-        <Button variant="outline" className="text-red-500 border-red-200 hover:bg-red-50">
-          Delete Account
-        </Button>
       </div>
     </div>
   )

@@ -1,52 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronRight, MapPin, CreditCard, Truck, Check, Loader2, ChevronDown, Shield } from 'lucide-react'
+import { ChevronRight, MapPin, CreditCard, Truck, Check, Loader2, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatPrice } from '@/lib/utils'
+import { useCartStore } from '@/stores/cart-store'
 
-// Sample cart data (will come from Zustand store)
-const cartItems = [
-  {
-    id: '1',
-    name: 'Matte Lipstick - Ruby Red',
-    variant: 'Ruby Red',
-    price: 599,
-    quantity: 2,
-  },
-  {
-    id: '2',
-    name: 'Velvet Lip Gloss - Berry Bliss',
-    variant: null,
-    price: 449,
-    quantity: 1,
-  },
-]
-
-const savedAddresses = [
-  {
-    id: '1',
-    name: 'Priya Sharma',
-    phone: '+91 9876543210',
-    line1: '123, Rose Garden Apartments',
-    line2: 'MG Road, Koramangala',
-    city: 'Bangalore',
-    state: 'Karnataka',
-    pincode: '560034',
-    isDefault: true,
-  },
-]
+interface Address {
+  id: string
+  name: string
+  phone: string
+  line1: string
+  line2: string | null
+  city: string
+  state: string
+  pincode: string
+  isDefault: boolean
+}
 
 type Step = 'address' | 'payment' | 'confirmation'
 
 export default function CheckoutPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const { items: cartItems, clearCart } = useCartStore()
+  
   const [currentStep, setCurrentStep] = useState<Step>('address')
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedAddress, setSelectedAddress] = useState(savedAddresses[0]?.id || null)
-  const [showNewAddressForm, setShowNewAddressForm] = useState(savedAddresses.length === 0)
+  const [loadingAddresses, setLoadingAddresses] = useState(true)
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>([])
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
+  const [showNewAddressForm, setShowNewAddressForm] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'razorpay' | 'cod'>('razorpay')
+  const [orderNumber, setOrderNumber] = useState<string>('')
+  const [error, setError] = useState('')
   
   const [newAddress, setNewAddress] = useState({
     name: '',
@@ -57,6 +48,50 @@ export default function CheckoutPage() {
     state: '',
     pincode: '',
   })
+
+  // Redirect if not logged in
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login?callbackUrl=/checkout')
+    }
+  }, [status, router])
+
+  // Redirect if cart is empty
+  useEffect(() => {
+    if (cartItems.length === 0 && currentStep !== 'confirmation') {
+      router.push('/cart')
+    }
+  }, [cartItems, currentStep, router])
+
+  // Fetch saved addresses
+  useEffect(() => {
+    if (status === 'authenticated') {
+      fetchAddresses()
+    }
+  }, [status])
+
+  const fetchAddresses = async () => {
+    try {
+      const res = await fetch('/api/v1/user/addresses')
+      const data = await res.json()
+      if (data.success) {
+        setSavedAddresses(data.data.addresses)
+        // Auto-select default address
+        const defaultAddr = data.data.addresses.find((a: Address) => a.isDefault)
+        if (defaultAddr) {
+          setSelectedAddress(defaultAddr.id)
+        } else if (data.data.addresses.length > 0) {
+          setSelectedAddress(data.data.addresses[0].id)
+        } else {
+          setShowNewAddressForm(true)
+        }
+      }
+    } catch (err) {
+      setError('Failed to load addresses')
+    } finally {
+      setLoadingAddresses(false)
+    }
+  }
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const shipping = subtotal >= 499 ? 0 : 49
@@ -69,9 +104,47 @@ export default function CheckoutPage() {
     { id: 'confirmation', label: 'Confirm', icon: Check },
   ]
 
+  const handleSaveNewAddress = async () => {
+    if (!newAddress.name || !newAddress.phone || !newAddress.line1 || !newAddress.city || !newAddress.state || !newAddress.pincode) {
+      setError('Please fill in all required fields')
+      return
+    }
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/v1/user/addresses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newAddress,
+          isDefault: savedAddresses.length === 0,
+        }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setSavedAddresses([...savedAddresses, data.data.address])
+        setSelectedAddress(data.data.address.id)
+        setShowNewAddressForm(false)
+        setNewAddress({ name: '', phone: '', line1: '', line2: '', city: '', state: '', pincode: '' })
+      } else {
+        setError(data.error || 'Failed to save address')
+      }
+    } catch (err) {
+      setError('Failed to save address')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleAddressSubmit = () => {
     if (!selectedAddress && !showNewAddressForm) {
       setShowNewAddressForm(true)
+      return
+    }
+    if (showNewAddressForm) {
+      handleSaveNewAddress()
       return
     }
     setCurrentStep('payment')
@@ -79,56 +152,100 @@ export default function CheckoutPage() {
 
   const handlePayment = async () => {
     setIsLoading(true)
+    setError('')
     
+    const selectedAddr = savedAddresses.find(a => a.id === selectedAddress)
+
     if (paymentMethod === 'cod') {
-      // Handle COD order
-      setTimeout(() => {
-        setCurrentStep('confirmation')
+      // Create COD order
+      try {
+        const res = await fetch('/api/v1/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cartItems.map(item => ({
+              productId: item.productId,
+              variantId: item.variantId,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+            addressId: selectedAddress,
+            paymentMethod: 'COD',
+          }),
+        })
+
+        const data = await res.json()
+        if (data.success) {
+          setOrderNumber(data.data.orderNumber || data.data.id)
+          clearCart()
+          setCurrentStep('confirmation')
+        } else {
+          setError(data.error || 'Failed to place order')
+        }
+      } catch (err) {
+        setError('Failed to place order')
+      } finally {
         setIsLoading(false)
-      }, 1500)
+      }
       return
     }
 
     // Initialize Razorpay payment
     try {
-      // Create order on backend
-      const response = await fetch('/api/orders/create', {
+      const res = await fetch('/api/v1/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: cartItems,
+          items: cartItems.map(item => ({
+            productId: item.productId,
+            variantId: item.variantId,
+            quantity: item.quantity,
+            price: item.price,
+          })),
           addressId: selectedAddress,
-          paymentMethod,
+          paymentMethod: 'RAZORPAY',
         }),
       })
 
-      const order = await response.json()
+      const order = await res.json()
+
+      if (!order.success) {
+        setError(order.error || 'Failed to create order')
+        setIsLoading(false)
+        return
+      }
 
       // Initialize Razorpay
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.amount,
+        amount: order.data.amount,
         currency: 'INR',
         name: 'Graphh Cosmetics',
         description: 'Order Payment',
-        order_id: order.razorpayOrderId,
+        order_id: order.data.razorpayOrderId,
         handler: async function (response: any) {
           // Verify payment on backend
-          await fetch('/api/orders/verify-payment', {
+          const verifyRes = await fetch('/api/v1/orders/verify-payment', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              orderId: order.id,
+              orderId: order.data.id,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpayOrderId: response.razorpay_order_id,
               razorpaySignature: response.razorpay_signature,
             }),
           })
-          setCurrentStep('confirmation')
+          const verifyData = await verifyRes.json()
+          if (verifyData.success) {
+            setOrderNumber(order.data.orderNumber || order.data.id)
+            clearCart()
+            setCurrentStep('confirmation')
+          }
         },
         prefill: {
-          name: savedAddresses[0]?.name,
-          contact: savedAddresses[0]?.phone,
+          name: selectedAddr?.name,
+          contact: selectedAddr?.phone,
+          email: session?.user?.email,
         },
         theme: {
           color: '#EC4899',
@@ -139,9 +256,18 @@ export default function CheckoutPage() {
       razorpay.open()
     } catch (error) {
       console.error('Payment failed:', error)
+      setError('Payment initialization failed')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (status === 'loading' || loadingAddresses) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-pink-500" />
+      </div>
+    )
   }
 
   return (
@@ -204,12 +330,16 @@ export default function CheckoutPage() {
       </div>
 
       <div className="container py-8">
+        {error && (
+          <div className="mb-6 bg-red-50 text-red-600 p-4 rounded-lg">{error}</div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
             {/* Address Step */}
             {currentStep === 'address' && (
-              <div className="bg-white rounded-lg p-6">
+              <div className="bg-white rounded-lg p-6 shadow-sm">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Delivery Address</h2>
                 
                 {/* Saved Addresses */}
@@ -243,7 +373,7 @@ export default function CheckoutPage() {
                               )}
                             </div>
                             <p className="text-sm text-gray-600 mt-1">
-                              {address.line1}, {address.line2}
+                              {address.line1}{address.line2 && `, ${address.line2}`}
                             </p>
                             <p className="text-sm text-gray-600">
                               {address.city}, {address.state} - {address.pincode}
@@ -268,7 +398,7 @@ export default function CheckoutPage() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
                         <Input
                           placeholder="Full name"
                           value={newAddress.name}
@@ -276,7 +406,7 @@ export default function CheckoutPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone *</label>
                         <Input
                           placeholder="+91 9876543210"
                           value={newAddress.phone}
@@ -285,7 +415,7 @@ export default function CheckoutPage() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1 *</label>
                       <Input
                         placeholder="House/Flat No., Building Name"
                         value={newAddress.line1}
@@ -302,7 +432,7 @@ export default function CheckoutPage() {
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">City *</label>
                         <Input
                           placeholder="City"
                           value={newAddress.city}
@@ -310,7 +440,7 @@ export default function CheckoutPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">State *</label>
                         <Input
                           placeholder="State"
                           value={newAddress.state}
@@ -318,7 +448,7 @@ export default function CheckoutPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">PIN Code</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">PIN Code *</label>
                         <Input
                           placeholder="560001"
                           value={newAddress.pincode}
@@ -338,15 +468,29 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                <Button onClick={handleAddressSubmit} className="w-full mt-6" size="lg">
-                  Continue to Payment
+                <Button 
+                  onClick={handleAddressSubmit} 
+                  className="w-full mt-6" 
+                  size="lg"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : showNewAddressForm ? (
+                    'Save & Continue'
+                  ) : (
+                    'Continue to Payment'
+                  )}
                 </Button>
               </div>
             )}
 
             {/* Payment Step */}
             {currentStep === 'payment' && (
-              <div className="bg-white rounded-lg p-6">
+              <div className="bg-white rounded-lg p-6 shadow-sm">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">Payment Method</h2>
                 
                 <div className="space-y-4">
@@ -435,7 +579,7 @@ export default function CheckoutPage() {
 
             {/* Confirmation Step */}
             {currentStep === 'confirmation' && (
-              <div className="bg-white rounded-lg p-8 text-center">
+              <div className="bg-white rounded-lg p-8 text-center shadow-sm">
                 <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
                   <Check className="w-10 h-10 text-green-500" />
                 </div>
@@ -444,7 +588,7 @@ export default function CheckoutPage() {
                   Thank you for shopping with Graphh Cosmetics
                 </p>
                 <p className="text-gray-600 mb-6">
-                  Order ID: <span className="font-mono font-medium">GRP-2024-001234</span>
+                  Order ID: <span className="font-mono font-medium">{orderNumber}</span>
                 </p>
                 
                 <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
@@ -467,7 +611,7 @@ export default function CheckoutPage() {
 
                 <div className="flex gap-3">
                   <Button variant="outline" className="flex-1" asChild>
-                    <Link href="/account/orders">View Order</Link>
+                    <Link href="/account/orders">View Orders</Link>
                   </Button>
                   <Button className="flex-1" asChild>
                     <Link href="/">Continue Shopping</Link>
@@ -478,58 +622,60 @@ export default function CheckoutPage() {
           </div>
 
           {/* Order Summary Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg p-6 sticky top-24">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
-              
-              {/* Items */}
-              <div className="space-y-3 mb-4">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="flex justify-between text-sm">
-                    <div>
-                      <p className="text-gray-900">{item.name}</p>
-                      {item.variant && (
-                        <p className="text-gray-500 text-xs">{item.variant}</p>
-                      )}
-                      <p className="text-gray-500">Qty: {item.quantity}</p>
+          {currentStep !== 'confirmation' && (
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-lg p-6 sticky top-24 shadow-sm">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
+                
+                {/* Items */}
+                <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                  {cartItems.map((item) => (
+                    <div key={`${item.productId}-${item.variantId}`} className="flex justify-between text-sm">
+                      <div>
+                        <p className="text-gray-900">{item.name}</p>
+                        {item.variant && (
+                          <p className="text-gray-500 text-xs">{item.variant}</p>
+                        )}
+                        <p className="text-gray-500">Qty: {item.quantity}</p>
+                      </div>
+                      <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
                     </div>
-                    <span className="font-medium">{formatPrice(item.price * item.quantity)}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              <div className="border-t pt-4 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span>{formatPrice(subtotal)}</span>
-                </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-green-600">
-                    <span>Discount</span>
-                    <span>-{formatPrice(discount)}</span>
+                <div className="border-t pt-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Subtotal</span>
+                    <span>{formatPrice(subtotal)}</span>
                   </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Shipping</span>
-                  <span className={shipping === 0 ? 'text-green-600' : ''}>
-                    {shipping === 0 ? 'FREE' : formatPrice(shipping)}
-                  </span>
+                  {discount > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span>Discount</span>
+                      <span>-{formatPrice(discount)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Shipping</span>
+                    <span className={shipping === 0 ? 'text-green-600' : ''}>
+                      {shipping === 0 ? 'FREE' : formatPrice(shipping)}
+                    </span>
+                  </div>
+                  <div className="border-t pt-2 flex justify-between text-base font-semibold">
+                    <span>Total</span>
+                    <span>{formatPrice(total)}</span>
+                  </div>
                 </div>
-                <div className="border-t pt-2 flex justify-between text-base font-semibold">
-                  <span>Total</span>
-                  <span>{formatPrice(total)}</span>
-                </div>
-              </div>
 
-              {/* Trust Badges */}
-              <div className="mt-6 pt-6 border-t text-center">
-                <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">
-                  <Shield className="w-4 h-4" />
-                  <span>Secure Checkout</span>
+                {/* Trust Badges */}
+                <div className="mt-6 pt-6 border-t text-center">
+                  <div className="flex items-center justify-center gap-2 text-gray-500 text-sm">
+                    <Shield className="w-4 h-4" />
+                    <span>Secure Checkout</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
