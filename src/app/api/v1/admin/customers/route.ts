@@ -47,8 +47,7 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { email: { contains: search, mode: 'insensitive' } },
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
       ]
     }
@@ -60,7 +59,7 @@ export async function GET(request: NextRequest) {
         orderBy = { createdAt: 'asc' }
         break
       case 'name':
-        orderBy = { firstName: 'asc' }
+        orderBy = { name: 'asc' }
         break
       case 'orders':
         orderBy = { orders: { _count: 'desc' } }
@@ -73,8 +72,8 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           email: true,
-          firstName: true,
-          lastName: true,
+          name: true,
+          
           phone: true,
           avatar: true,
           isVerified: true,
@@ -97,9 +96,7 @@ export async function GET(request: NextRequest) {
     const transformedCustomers = customers.map((customer) => ({
       id: customer.id,
       email: customer.email,
-      name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'N/A',
-      firstName: customer.firstName,
-      lastName: customer.lastName,
+      name: customer.name || 'N/A',
       phone: customer.phone,
       avatar: customer.avatar,
       isVerified: customer.isVerified,

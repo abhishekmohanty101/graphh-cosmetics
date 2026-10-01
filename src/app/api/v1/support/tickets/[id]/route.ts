@@ -29,8 +29,8 @@ export async function GET(
             user: {
               select: {
                 id: true,
-                firstName: true,
-                lastName: true,
+                name: true,
+                
                 avatar: true,
               },
             },
@@ -48,8 +48,8 @@ export async function GET(
         user: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
+            
             email: true,
           },
         },
@@ -142,8 +142,8 @@ export async function POST(
         user: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
+            
             avatar: true,
           },
         },

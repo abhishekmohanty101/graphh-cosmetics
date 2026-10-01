@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       take: limit,
       include: {
         user: {
-          select: { id: true, firstName: true, lastName: true, email: true },
+          select: { id: true, name: true,  email: true },
         },
         product: {
           select: { id: true, name: true, slug: true },
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
           createdAt: r.createdAt,
           user: {
             id: r.user.id,
-            name: `${r.user.firstName} ${r.user.lastName}`,
+            name: r.user.name || 'Unknown',
             email: r.user.email,
           },
           product: r.product,

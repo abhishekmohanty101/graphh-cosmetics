@@ -55,7 +55,6 @@ export async function POST(request: NextRequest) {
             where: { id: payment.orderId },
             data: {
               status: 'CONFIRMED',
-              paymentStatus: 'PAID',
             },
           })
         }
@@ -95,7 +94,7 @@ export async function POST(request: NextRequest) {
 
         if (payment) {
           // Check if full refund
-          if (refundEntity.amount === payment.amount * 100) {
+          if (refundEntity.amount === Number(payment.amount) * 100) {
             await prisma.payment.update({
               where: { id: payment.id },
               data: { status: 'REFUNDED' },
@@ -103,13 +102,13 @@ export async function POST(request: NextRequest) {
 
             await prisma.order.update({
               where: { id: payment.orderId },
-              data: { paymentStatus: 'REFUNDED' },
+              data: { status: 'REFUNDED' },
             })
           } else {
-            // Partial refund
-            await prisma.order.update({
-              where: { id: payment.orderId },
-              data: { paymentStatus: 'PARTIALLY_REFUNDED' },
+            // Partial refund - just update payment status
+            await prisma.payment.update({
+              where: { id: payment.id },
+              data: { status: 'PARTIALLY_REFUNDED' },
             })
           }
         }
@@ -137,7 +136,6 @@ export async function POST(request: NextRequest) {
             where: { id: payment.orderId },
             data: {
               status: 'CONFIRMED',
-              paymentStatus: 'PAID',
             },
           })
         }

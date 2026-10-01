@@ -73,7 +73,6 @@ export async function POST(request: NextRequest) {
         where: { id: order.id },
         data: {
           status: 'CANCELLED',
-          paymentStatus: 'FAILED',
         },
       })
 
@@ -96,7 +95,6 @@ export async function POST(request: NextRequest) {
       where: { id: order.id },
       data: {
         status: 'CONFIRMED',
-        paymentStatus: 'PAID',
       },
     })
 

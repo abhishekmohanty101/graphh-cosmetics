@@ -60,8 +60,8 @@ export async function GET(
         createdAt: true,
         user: {
           select: {
-            firstName: true,
-            lastName: true,
+            name: true,
+            
             image: true,
           },
         },
@@ -92,8 +92,8 @@ export async function GET(
       helpfulCount: review.helpfulCount,
       createdAt: review.createdAt,
       author: {
-        name: `${review.user.firstName} ${review.user.lastName?.charAt(0) || ''}.`,
-        image: review.user.image,
+        name: review.user.name || 'Anonymous',
+        image: review.user.avatar,
       },
     }))
 

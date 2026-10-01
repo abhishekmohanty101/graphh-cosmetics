@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           user: {
-            select: { firstName: true, lastName: true, email: true },
+            select: { name: true,  email: true },
           },
           product: {
             select: { id: true, name: true, slug: true, images: true },
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
       isVerified: review.isVerified,
       isApproved: review.isApproved,
       user: {
-        name: `${review.user.firstName || ''} ${review.user.lastName || ''}`.trim() || review.user.email,
+        name: `${review.user.name || ''} ${review. || ''}`.trim() || review.user.email,
         email: review.user.email,
       },
       product: {

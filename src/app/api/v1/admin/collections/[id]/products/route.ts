@@ -24,11 +24,7 @@ export async function POST(
     }
 
     // Get existing products in collection
-    const existingProducts = await prisma.collectionProduct.findMany({
-      where: { collectionId: params.id },
-      select: { productId: true },
-    })
-    const existingIds = new Set(existingProducts.map((p) => p.productId))
+    const existingIds = new Set(collection.productIds || [])
 
     // Filter out already added products
     const newProductIds = productIds.filter((id: string) => !existingIds.has(id))
@@ -37,27 +33,18 @@ export async function POST(
       return errorResponse('All products are already in this collection', 400)
     }
 
-    // Get max sort order
-    const maxOrder = await prisma.collectionProduct.findFirst({
-      where: { collectionId: params.id },
-      orderBy: { sortOrder: 'desc' },
-      select: { sortOrder: true },
-    })
-
-    let currentOrder = (maxOrder?.sortOrder || 0) + 1
-
-    // Add new products
-    await prisma.collectionProduct.createMany({
-      data: newProductIds.map((productId: string) => ({
-        collectionId: params.id,
-        productId,
-        sortOrder: currentOrder++,
-      })),
+    // Update collection with new product IDs
+    const updatedCollection = await prisma.collection.update({
+      where: { id: params.id },
+      data: {
+        productIds: [...(collection.productIds || []), ...newProductIds],
+      },
     })
 
     return successResponse({
       message: `${newProductIds.length} products added to collection`,
       addedCount: newProductIds.length,
+      totalProducts: updatedCollection.productIds.length,
     })
   } catch (error) {
     console.error('Add products to collection error:', error)
@@ -72,7 +59,8 @@ export async function DELETE(
 ) {
   try {
     const { searchParams } = new URL(request.url)
-    const productIds = searchParams.get('productIds')?.split(',')
+    const productIdsParam = searchParams.get('productIds')
+    const productIds = productIdsParam?.split(',')
 
     if (!productIds || productIds.length === 0) {
       return errorResponse('Product IDs are required', 400)
@@ -86,19 +74,62 @@ export async function DELETE(
       return notFoundResponse('Collection')
     }
 
-    const result = await prisma.collectionProduct.deleteMany({
-      where: {
-        collectionId: params.id,
-        productId: { in: productIds },
-      },
+    // Remove specified product IDs
+    const updatedProductIds = (collection.productIds || []).filter(
+      (id) => !productIds.includes(id)
+    )
+
+    const updatedCollection = await prisma.collection.update({
+      where: { id: params.id },
+      data: { productIds: updatedProductIds },
     })
 
     return successResponse({
-      message: `${result.count} products removed from collection`,
-      removedCount: result.count,
+      message: `${productIds.length} products removed from collection`,
+      removedCount: productIds.length,
+      totalProducts: updatedCollection.productIds.length,
     })
   } catch (error) {
     console.error('Remove products from collection error:', error)
     return errorResponse('Failed to remove products', 500)
+  }
+}
+
+// GET /api/v1/admin/collections/[id]/products - Get products in collection
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const collection = await prisma.collection.findUnique({
+      where: { id: params.id },
+    })
+
+    if (!collection) {
+      return notFoundResponse('Collection')
+    }
+
+    // Fetch product details
+    const products = await prisma.product.findMany({
+      where: { id: { in: collection.productIds || [] } },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        price: true,
+        images: true,
+        isActive: true,
+      },
+    })
+
+    return successResponse({
+      collectionId: params.id,
+      collectionName: collection.name,
+      products,
+      totalProducts: products.length,
+    })
+  } catch (error) {
+    console.error('Get collection products error:', error)
+    return errorResponse('Failed to fetch products', 500)
   }
 }

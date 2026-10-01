@@ -12,8 +12,7 @@ import {
 import { z } from 'zod'
 
 const updateProfileSchema = z.object({
-  firstName: z.string().min(1, 'First name is required').optional(),
-  lastName: z.string().min(1, 'Last name is required').optional(),
+  name: z.string().min(1, 'Name is required').optional(),
   phone: z.string().regex(/^[6-9]\d{9}$/, 'Invalid phone number').optional().nullable(),
   dateOfBirth: z.string().optional().nullable(),
   gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional().nullable(),
@@ -32,10 +31,9 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
+        name: true,
         phone: true,
-        image: true,
+        avatar: true,
         dateOfBirth: true,
         gender: true,
         emailVerified: true,
@@ -50,10 +48,9 @@ export async function GET(request: NextRequest) {
     return successResponse({
       id: user.id,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      name: user.name,
       phone: user.phone,
-      image: user.image,
+      image: user.avatar,
       dateOfBirth: user.dateOfBirth,
       gender: user.gender,
       emailVerified: !!user.emailVerified,
@@ -80,8 +77,7 @@ export async function PATCH(request: NextRequest) {
 
     const data: any = {}
 
-    if (result.data.firstName !== undefined) data.firstName = result.data.firstName
-    if (result.data.lastName !== undefined) data.lastName = result.data.lastName
+    if (result.data.name !== undefined) data.name = result.data.name
     if (result.data.phone !== undefined) {
       // Check if phone is already in use
       if (result.data.phone) {
@@ -108,8 +104,8 @@ export async function PATCH(request: NextRequest) {
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
+        name: true,
+        
         phone: true,
         dateOfBirth: true,
         gender: true,

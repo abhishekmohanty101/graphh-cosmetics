@@ -239,8 +239,8 @@ async function getCustomersReport(dateFrom: Date, dateTo: Date) {
     },
     select: {
       id: true,
-      firstName: true,
-      lastName: true,
+      name: true,
+      
       email: true,
       orders: {
         where: {
@@ -256,7 +256,7 @@ async function getCustomersReport(dateFrom: Date, dateTo: Date) {
   const topCustomersWithSpend = topCustomers
     .map((c) => ({
       id: c.id,
-      name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || c.email,
+      name: c.name || c.email,
       email: c.email,
       orders: c.orders.length,
       totalSpent: c.orders.reduce((sum, o) => sum + Number(o.total), 0),

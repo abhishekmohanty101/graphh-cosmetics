@@ -36,16 +36,6 @@ export async function GET(request: NextRequest) {
     const [logs, total] = await Promise.all([
       prisma.auditLog.findMany({
         where,
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-            },
-          },
-        },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -61,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     // Get entity types for filtering
     const entityTypes = await prisma.auditLog.groupBy({
-      by: ['entityType'],
+      by: ['entity'],
       _count: true,
     })
 
@@ -69,7 +59,7 @@ export async function GET(request: NextRequest) {
       logs,
       filters: {
         actions: actionTypes.map((a) => ({ action: a.action, count: a._count })),
-        entityTypes: entityTypes.map((e) => ({ type: e.entityType, count: e._count })),
+        entityTypes: entityTypes.map((e) => ({ type: e.entity, count: e._count })),
       },
       pagination: createPagination(page, limit, total),
     })

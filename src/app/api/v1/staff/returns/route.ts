@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
           createdAt: true,
           updatedAt: true,
           user: {
-            select: { firstName: true, lastName: true, email: true, phone: true },
+            select: { name: true,  email: true, phone: true },
           },
           items: {
             select: {
@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
           status: order.status,
           total: Number(order.total),
           customer: {
-            name: `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim(),
+            name: `${order.user.name || ''} ${order. || ''}`.trim(),
             email: order.user.email,
             phone: order.user.phone,
           },

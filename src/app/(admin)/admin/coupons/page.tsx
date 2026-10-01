@@ -96,16 +96,18 @@ interface CouponFormData {
   isActive: boolean
 }
 
-const typeConfig = {
+type CouponType = 'PERCENTAGE' | 'FIXED' | 'FREE_SHIPPING'
+
+const typeConfig: Record<CouponType, { label: string; icon: typeof Percent; color: string }> = {
   PERCENTAGE: { label: 'Percentage', icon: Percent, color: 'text-blue-600 bg-blue-100' },
   FIXED: { label: 'Fixed Amount', icon: IndianRupee, color: 'text-green-600 bg-green-100' },
   FREE_SHIPPING: { label: 'Free Shipping', icon: Truck, color: 'text-purple-600 bg-purple-100' },
 }
 
 export default function CouponsPage() {
-  const [coupons, setCoupons] = useState(mockCoupons)
+  const [coupons, setCoupons] = useState<Coupon[]>(mockCoupons)
   const [showModal, setShowModal] = useState(false)
-  const [editingCoupon, setEditingCoupon] = useState<typeof mockCoupons[0] | null>(null)
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null)
   const [formData, setFormData] = useState<CouponFormData>({
     code: '',
     type: 'PERCENTAGE',
@@ -295,7 +297,8 @@ export default function CouponsPage() {
                 </tr>
               ) : (
                 coupons.map((coupon) => {
-                  const TypeIcon = typeConfig[coupon.type].icon
+                  const couponType = coupon.type as CouponType
+                  const TypeIcon = typeConfig[couponType]?.icon || Percent
                   const expired = isExpired(coupon.validUntil)
                   return (
                     <tr key={coupon.id} className={`hover:bg-gray-50 ${expired ? 'opacity-60' : ''}`}>
@@ -315,10 +318,10 @@ export default function CouponsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${typeConfig[coupon.type].color}`}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${typeConfig[couponType]?.color || ''}`}
                         >
                           <TypeIcon className="w-3 h-3" />
-                          {typeConfig[coupon.type].label}
+                          {typeConfig[couponType]?.label || coupon.type}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium">

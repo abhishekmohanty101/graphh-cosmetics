@@ -38,9 +38,11 @@ export async function GET(request: NextRequest) {
         id: true,
         orderNumber: true,
         status: true,
-        paymentStatus: true,
-        totalAmount: true,
+        total: true,
         createdAt: true,
+        payment: {
+          select: { status: true },
+        },
         items: {
           select: {
             id: true,
@@ -61,8 +63,8 @@ export async function GET(request: NextRequest) {
       id: order.id,
       orderNumber: order.orderNumber,
       status: order.status,
-      paymentStatus: order.paymentStatus,
-      totalAmount: order.totalAmount,
+      paymentStatus: order.payment?.status || 'PENDING',
+      total: Number(order.total),
       createdAt: order.createdAt,
       itemCount: order._count.items,
       previewItems: order.items,

@@ -56,8 +56,7 @@ export async function GET(request: NextRequest) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
         { user: { email: { contains: search, mode: 'insensitive' } } },
-        { user: { firstName: { contains: search, mode: 'insensitive' } } },
-        { user: { lastName: { contains: search, mode: 'insensitive' } } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
       ]
     }
 
@@ -66,7 +65,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (paymentStatus) {
-      where.paymentStatus = paymentStatus
+      where.payment = { status: paymentStatus }
     }
 
     if (startDate || endDate) {
@@ -88,10 +87,10 @@ export async function GET(request: NextRequest) {
       take: limit,
       include: {
         user: {
-          select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+          select: { id: true, name: true, email: true, phone: true },
         },
-        shippingAddress: {
-          select: { city: true, state: true },
+        payment: {
+          select: { status: true },
         },
         _count: { select: { items: true } },
       },
@@ -103,17 +102,16 @@ export async function GET(request: NextRequest) {
           id: order.id,
           orderNumber: order.orderNumber,
           status: order.status,
-          paymentStatus: order.paymentStatus,
-          totalAmount: order.totalAmount,
+          paymentStatus: order.payment?.status || 'PENDING',
+          total: Number(order.total),
           itemCount: order._count.items,
           customer: {
             id: order.user.id,
-            name: `${order.user.firstName} ${order.user.lastName}`,
+            name: order.user.name || 'Unknown',
             email: order.user.email,
             phone: order.user.phone,
           },
-          shippingCity: order.shippingAddress?.city,
-          shippingState: order.shippingAddress?.state,
+          shippingAddress: order.shippingAddress,
           createdAt: order.createdAt,
         })),
       },

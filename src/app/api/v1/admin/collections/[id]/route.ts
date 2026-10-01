@@ -10,29 +10,34 @@ export async function GET(
   try {
     const collection = await prisma.collection.findUnique({
       where: { id: params.id },
-      include: {
-        products: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                price: true,
-                images: true,
-                isActive: true,
-              },
-            },
-          },
-        },
-      },
     })
 
     if (!collection) {
       return notFoundResponse('Collection')
     }
 
-    return successResponse({ collection })
+    // Fetch products if any
+    let products: any[] = []
+    if (collection.productIds && collection.productIds.length > 0) {
+      products = await prisma.product.findMany({
+        where: { id: { in: collection.productIds } },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          price: true,
+          images: true,
+          isActive: true,
+        },
+      })
+    }
+
+    return successResponse({
+      collection: {
+        ...collection,
+        products,
+      },
+    })
   } catch (error) {
     console.error('Get collection error:', error)
     return errorResponse('Failed to fetch collection', 500)
@@ -46,7 +51,7 @@ export async function PUT(
 ) {
   try {
     const body = await request.json()
-    const { name, slug, description, image, isActive, sortOrder } = body
+    const { name, slug, description, image, isActive, sortOrder, productIds } = body
 
     const existing = await prisma.collection.findUnique({
       where: { id: params.id },
@@ -75,6 +80,7 @@ export async function PUT(
         ...(image !== undefined && { image }),
         ...(isActive !== undefined && { isActive }),
         ...(sortOrder !== undefined && { sortOrder }),
+        ...(productIds !== undefined && { productIds }),
       },
     })
 
@@ -98,11 +104,6 @@ export async function DELETE(
     if (!existing) {
       return notFoundResponse('Collection')
     }
-
-    // Remove product associations first
-    await prisma.collectionProduct.deleteMany({
-      where: { collectionId: params.id },
-    })
 
     await prisma.collection.delete({
       where: { id: params.id },

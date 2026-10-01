@@ -50,8 +50,8 @@ export async function GET(
         },
         shippingAddress: {
           select: {
-            firstName: true,
-            lastName: true,
+            name: true,
+            
             phone: true,
             addressLine1: true,
             addressLine2: true,
@@ -63,8 +63,8 @@ export async function GET(
         },
         billingAddress: {
           select: {
-            firstName: true,
-            lastName: true,
+            name: true,
+            
             phone: true,
             addressLine1: true,
             addressLine2: true,
@@ -124,21 +124,19 @@ export async function GET(
       id: order.id,
       orderNumber: order.orderNumber,
       status: order.status,
-      paymentStatus: order.paymentStatus,
-      subtotal: order.subtotal,
-      discount: order.discount,
-      shippingCost: order.shippingCost,
-      tax: order.tax,
-      totalAmount: order.totalAmount,
-      currency: order.currency,
+      paymentStatus: order.payments?.[0]?.status || 'PENDING',
+      subtotal: Number(order.subtotal),
+      discount: Number(order.discount),
+      shipping: Number(order.shipping),
+      tax: Number(order.tax),
+      total: Number(order.total),
       notes: order.notes,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
       items: formattedItems,
       shippingAddress: order.shippingAddress,
-      billingAddress: order.billingAddress,
-      payment: order.payments[0] || null,
-      shipment: order.shipments[0] || null,
+      payment: order.payments?.[0] || null,
+      shipment: order.shipment || null,
     })
   } catch (error) {
     return serverErrorResponse(error)

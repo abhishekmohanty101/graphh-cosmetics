@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
           createdAt: true,
           user: {
             select: {
-              firstName: true,
-              lastName: true,
+              name: true,
+              
               image: true,
             },
           },
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
         comment: review.comment,
         createdAt: review.createdAt,
         author: {
-          name: `${review.user.firstName} ${review.user.lastName?.charAt(0) || ''}.`,
+          name: `${review.user.name} ${review.?.charAt(0) || ''}.`,
           image: review.user.image,
         },
       }))

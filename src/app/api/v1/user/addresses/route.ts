@@ -25,8 +25,8 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         type: true,
-        firstName: true,
-        lastName: true,
+        name: true,
+        
         phone: true,
         addressLine1: true,
         addressLine2: true,
@@ -84,8 +84,8 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         type: true,
-        firstName: true,
-        lastName: true,
+        name: true,
+        
         phone: true,
         addressLine1: true,
         addressLine2: true,

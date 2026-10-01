@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
           where,
           include: {
             user: {
-              select: { firstName: true, lastName: true, email: true },
+              select: { name: true,  email: true },
             },
             order: {
               select: { orderNumber: true },
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
         priority: ticket.priority,
         status: ticket.status,
         customer: {
-          name: `${ticket.user.firstName || ''} ${ticket.user.lastName || ''}`.trim() || ticket.user.email,
+          name: `${ticket.user.name || ''} ${ticket. || ''}`.trim() || ticket.user.email,
           email: ticket.user.email,
         },
         orderNumber: ticket.order?.orderNumber || null,

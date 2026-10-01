@@ -19,12 +19,8 @@ export async function POST(request: NextRequest) {
         data: {
           userId: session.user.id,
           action: 'ADMIN_LOGOUT',
-          entityType: 'USER',
+          entity: 'USER',
           entityId: session.user.id,
-          metadata: {
-            ip: request.headers.get('x-forwarded-for') || 'unknown',
-            userAgent: request.headers.get('user-agent') || 'unknown',
-          },
         },
       })
     } catch {

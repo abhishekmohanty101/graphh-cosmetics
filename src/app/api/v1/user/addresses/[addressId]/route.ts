@@ -30,8 +30,8 @@ export async function GET(
       select: {
         id: true,
         type: true,
-        firstName: true,
-        lastName: true,
+        name: true,
+        
         phone: true,
         addressLine1: true,
         addressLine2: true,
@@ -105,8 +105,8 @@ export async function PATCH(
       select: {
         id: true,
         type: true,
-        firstName: true,
-        lastName: true,
+        name: true,
+        
         phone: true,
         addressLine1: true,
         addressLine2: true,

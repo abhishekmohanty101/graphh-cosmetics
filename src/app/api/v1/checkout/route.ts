@@ -146,46 +146,32 @@ export async function POST(request: NextRequest) {
     // Generate order number
     const orderNumber = generateOrderNumber()
 
+    // Prepare address snapshots as JSON
+    const shippingAddressSnapshot = {
+      name: shippingAddress.name,
+      phone: shippingAddress.phone,
+      line1: shippingAddress.line1,
+      line2: shippingAddress.line2 || null,
+      city: shippingAddress.city,
+      state: shippingAddress.state,
+      pincode: shippingAddress.pincode,
+      country: shippingAddress.country || 'India',
+    }
+
     // Create order with addresses snapshot
     const order = await prisma.order.create({
       data: {
         orderNumber,
         userId: session.user.id,
         status: paymentMethod === 'COD' ? 'CONFIRMED' : 'PENDING',
-        paymentStatus: paymentMethod === 'COD' ? 'PENDING' : 'PENDING',
         subtotal,
         discount,
-        shippingCost,
+        shipping: shippingCost,
         tax,
-        totalAmount,
-        currency: 'INR',
+        total: totalAmount,
         notes,
-        shippingAddress: {
-          create: {
-            firstName: shippingAddress.firstName,
-            lastName: shippingAddress.lastName,
-            phone: shippingAddress.phone,
-            addressLine1: shippingAddress.addressLine1,
-            addressLine2: shippingAddress.addressLine2,
-            city: shippingAddress.city,
-            state: shippingAddress.state,
-            postalCode: shippingAddress.postalCode,
-            country: shippingAddress.country,
-          },
-        },
-        billingAddress: {
-          create: {
-            firstName: billingAddressData.firstName,
-            lastName: billingAddressData.lastName,
-            phone: billingAddressData.phone,
-            addressLine1: billingAddressData.addressLine1,
-            addressLine2: billingAddressData.addressLine2,
-            city: billingAddressData.city,
-            state: billingAddressData.state,
-            postalCode: billingAddressData.postalCode,
-            country: billingAddressData.country,
-          },
-        },
+        shippingAddress: shippingAddressSnapshot,
+        couponCode: couponCode || null,
         items: {
           create: orderItems,
         },
@@ -224,7 +210,6 @@ export async function POST(request: NextRequest) {
           method: 'COD',
           status: 'PENDING',
           amount: totalAmount,
-          currency: 'INR',
         },
       })
 
@@ -234,7 +219,7 @@ export async function POST(request: NextRequest) {
         orderId: order.id,
         orderNumber: order.orderNumber,
         paymentMethod: 'COD',
-        totalAmount,
+        total: totalAmount,
         message: 'Order placed successfully!',
       })
     }
@@ -262,7 +247,6 @@ export async function POST(request: NextRequest) {
         method: 'RAZORPAY',
         status: 'PENDING',
         amount: totalAmount,
-        currency: 'INR',
         providerOrderId: razorpayOrder.id,
       },
     })
@@ -276,7 +260,7 @@ export async function POST(request: NextRequest) {
       amount: totalAmount,
       currency: 'INR',
       prefill: {
-        name: `${shippingAddress.firstName} ${shippingAddress.lastName}`,
+        name: shippingAddress.name,
         contact: shippingAddress.phone,
         email: session.user.email,
       },

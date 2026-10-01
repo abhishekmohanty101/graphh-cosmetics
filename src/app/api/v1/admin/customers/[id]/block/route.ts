@@ -26,23 +26,14 @@ export async function POST(
     await prisma.user.update({
       where: { id: params.id },
       data: {
-        isActive: !blocked,
-        metadata: {
-          ...(user.metadata as any || {}),
-          ...(blocked ? {
-            blockedAt: new Date().toISOString(),
-            blockReason: reason || 'No reason provided',
-          } : {
-            unblockedAt: new Date().toISOString(),
-          }),
-        },
+        isBlocked: blocked,
       },
     })
 
     return successResponse({
       message: blocked ? 'Customer blocked successfully' : 'Customer unblocked successfully',
       customerId: user.id,
-      isActive: !blocked,
+      isBlocked: blocked,
     })
   } catch (error) {
     console.error('Block customer error:', error)

@@ -17,13 +17,13 @@ async function checkStaffAccess() {
   }
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { role: true, firstName: true, lastName: true },
+    select: { role: true, name: true },
   })
   const staffRoles = ['ADMIN', 'SUPER_ADMIN', 'MANAGER', 'STAFF', 'SUPPORT_AGENT']
   if (!user || !staffRoles.includes(user.role)) {
     return { error: 'Forbidden', status: 403 }
   }
-  return { user: session.user, staffName: `${user.firstName || ''} ${user.lastName || ''}`.trim() }
+  return { user: session.user, staffName: user.name || 'Staff' }
 }
 
 // GET /api/v1/staff/support/[id] - Get ticket details
@@ -42,7 +42,7 @@ export async function GET(
         where: { id: params.id },
         include: {
           user: {
-            select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+            select: { id: true, name: true,  email: true, phone: true },
           },
           order: {
             select: {
@@ -57,7 +57,7 @@ export async function GET(
             orderBy: { createdAt: 'asc' },
             include: {
               user: {
-                select: { firstName: true, lastName: true, avatar: true },
+                select: { name: true,  avatar: true },
               },
             },
           },
@@ -78,7 +78,7 @@ export async function GET(
           status: ticket.status,
           customer: {
             id: ticket.user.id,
-            name: `${ticket.user.firstName || ''} ${ticket.user.lastName || ''}`.trim(),
+            name: `${ticket.user.name || ''} ${ticket. || ''}`.trim(),
             email: ticket.user.email,
             phone: ticket.user.phone,
           },
@@ -88,7 +88,7 @@ export async function GET(
             content: msg.content,
             isStaff: msg.isStaff,
             sender: msg.isStaff
-              ? `${msg.user.firstName || ''} ${msg.user.lastName || ''}`.trim() || 'Support Agent'
+              ? `${msg.user.name || ''} ${msg. || ''}`.trim() || 'Support Agent'
               : 'Customer',
             avatar: msg.user.avatar,
             createdAt: msg.createdAt,

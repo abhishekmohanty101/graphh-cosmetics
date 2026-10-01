@@ -33,8 +33,8 @@ export async function GET(
 
     // Calculate statistics
     const totalUsage = orders.length
-    const totalDiscount = orders.reduce((sum, o) => sum + o.discount, 0)
-    const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0)
+    const totalDiscount = orders.reduce((sum, o) => sum + Number(o.discount), 0)
+    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.total), 0)
     const avgDiscount = totalUsage > 0 ? totalDiscount / totalUsage : 0
     const avgOrderValue = totalUsage > 0 ? totalRevenue / totalUsage : 0
 
@@ -46,11 +46,11 @@ export async function GET(
         usageByDay[day] = { count: 0, discount: 0 }
       }
       usageByDay[day].count += 1
-      usageByDay[day].discount += order.discount
+      usageByDay[day].discount += Number(order.discount)
     })
 
     // Unique users
-    const uniqueUsers = new Set(orders.map((o) => o.user.id)).size
+    const uniqueUsers = Array.from(new Set(orders.map((o) => o.user.id))).length
 
     return successResponse({
       coupon: {

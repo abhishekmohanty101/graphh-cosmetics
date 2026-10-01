@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     // Find user
     const user = await prisma.user.findUnique({
       where: { email: email.toLowerCase() },
-      select: { id: true, email: true, firstName: true },
+      select: { id: true, email: true, name: true },
     })
 
     // Always return success to prevent email enumeration
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     //   to: user.email,
     //   subject: 'Reset your password - Graphh Cosmetics',
     //   template: 'password-reset',
-    //   data: { firstName: user.firstName, resetUrl }
+    //   data: { firstName: user.name, resetUrl }
     // })
 
     console.log(`Password reset token for ${email}: ${resetToken}`)

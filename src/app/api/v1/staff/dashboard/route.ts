@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
         total: true,
         status: true,
         createdAt: true,
-        user: { select: { firstName: true, lastName: true, email: true } },
+        user: { select: { name: true,  email: true } },
         items: { select: { quantity: true } },
       },
       orderBy: { createdAt: 'asc' },
@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
       recentPendingOrders: recentPendingOrders.map((o) => ({
         id: o.id,
         orderNumber: o.orderNumber,
-        customer: `${o.user.firstName || ''} ${o.user.lastName || ''}`.trim() || o.user.email,
+        customer: `${o.user.name || ''} ${o. || ''}`.trim() || o.user.email,
         total: Number(o.total),
         status: o.status,
         itemCount: o.items.reduce((sum, i) => sum + i.quantity, 0),

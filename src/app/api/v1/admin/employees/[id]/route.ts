@@ -42,8 +42,8 @@ export async function GET(
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
+        name: true,
+        
         phone: true,
         avatar: true,
         role: true,
@@ -83,7 +83,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { firstName, lastName, phone, role, password, isActive } = body
+    const { name, phone, role, password, isActive } = body
 
     const employee = await prisma.user.findUnique({
       where: { id: params.id },
@@ -115,8 +115,7 @@ export async function PUT(
     }
 
     const updateData: any = {
-      firstName: firstName !== undefined ? firstName : employee.firstName,
-      lastName: lastName !== undefined ? lastName : employee.lastName,
+      name: name !== undefined ? name : employee.name,
       phone: phone !== undefined ? phone : employee.phone,
     }
 
@@ -138,8 +137,8 @@ export async function PUT(
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
+        name: true,
+        
         phone: true,
         role: true,
         isVerified: true,

@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     const ordersInPeriod = await prisma.order.findMany({
       where: { createdAt: { gte: startDate } },
       select: {
-        totalAmount: true,
+        total: true,
         status: true,
         createdAt: true,
       },
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
 
     const totalRevenue = ordersInPeriod
       .filter((o) => !['CANCELLED', 'REFUNDED'].includes(o.status))
-      .reduce((sum, o) => sum + o.totalAmount, 0)
+      .reduce((sum, o) => sum + Number(o.total), 0)
 
     const totalOrders = ordersInPeriod.length
     const completedOrders = ordersInPeriod.filter((o) => o.status === 'DELIVERED').length
@@ -85,12 +85,12 @@ export async function GET(request: NextRequest) {
       where: {
         createdAt: { gte: previousStartDate, lt: startDate },
       },
-      select: { totalAmount: true, status: true },
+      select: { total: true, status: true },
     })
 
     const previousRevenue = previousOrders
       .filter((o) => !['CANCELLED', 'REFUNDED'].includes(o.status))
-      .reduce((sum, o) => sum + o.totalAmount, 0)
+      .reduce((sum, o) => sum + Number(o.total), 0)
 
     const revenueChange = previousRevenue > 0
       ? ((totalRevenue - previousRevenue) / previousRevenue) * 100
@@ -162,13 +162,12 @@ export async function GET(request: NextRequest) {
         id: true,
         orderNumber: true,
         status: true,
-        paymentStatus: true,
-        totalAmount: true,
+        total: true,
         createdAt: true,
         user: {
-          select: { firstName: true, lastName: true, email: true },
+          select: { name: true, email: true },
         },
-        _count: { select: { items: true } },
+        items: { select: { id: true } },
       },
     })
 
@@ -197,12 +196,11 @@ export async function GET(request: NextRequest) {
         id: order.id,
         orderNumber: order.orderNumber,
         status: order.status,
-        paymentStatus: order.paymentStatus,
-        totalAmount: order.totalAmount,
+        total: Number(order.total),
         createdAt: order.createdAt,
-        customerName: `${order.user.firstName} ${order.user.lastName}`,
+        customerName: order.user.name || 'Unknown',
         customerEmail: order.user.email,
-        itemCount: order._count.items,
+        itemCount: order.items.length,
       })),
       pendingReviews,
     })

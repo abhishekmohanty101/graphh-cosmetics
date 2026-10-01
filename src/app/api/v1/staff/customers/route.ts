@@ -44,8 +44,7 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { email: { contains: search, mode: 'insensitive' } },
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
         { phone: { contains: search } },
       ]
     }
@@ -56,8 +55,7 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           email: true,
-          firstName: true,
-          lastName: true,
+          name: true,
           phone: true,
           createdAt: true,
           _count: { select: { orders: true } },
@@ -72,7 +70,7 @@ export async function GET(request: NextRequest) {
     const transformedCustomers = customers.map((c) => ({
       id: c.id,
       email: c.email,
-      name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'N/A',
+      name: c.name || 'N/A',
       phone: c.phone,
       orderCount: c._count.orders,
       createdAt: c.createdAt,

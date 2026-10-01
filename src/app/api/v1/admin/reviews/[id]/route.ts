@@ -46,7 +46,7 @@ export async function GET(
       where: { id: params.id },
       include: {
         user: {
-          select: { id: true, firstName: true, lastName: true, email: true },
+          select: { id: true, name: true,  email: true },
         },
         product: {
           select: { id: true, name: true, slug: true },

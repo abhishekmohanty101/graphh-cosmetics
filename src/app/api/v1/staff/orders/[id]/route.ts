@@ -43,8 +43,8 @@ export async function GET(
         user: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
+            
             email: true,
             phone: true,
           },
@@ -109,7 +109,7 @@ export async function GET(
         giftMessage: order.giftMessage,
         customer: {
           id: order.user.id,
-          name: `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim(),
+          name: `${order.user.name || ''} ${order. || ''}`.trim(),
           email: order.user.email,
           phone: order.user.phone,
         },

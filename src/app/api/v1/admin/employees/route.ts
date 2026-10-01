@@ -53,8 +53,7 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { email: { contains: search, mode: 'insensitive' } },
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
       ]
     }
 
@@ -64,14 +63,12 @@ export async function GET(request: NextRequest) {
         select: {
           id: true,
           email: true,
-          firstName: true,
-          lastName: true,
+          name: true,
           phone: true,
           avatar: true,
           role: true,
           isVerified: true,
           createdAt: true,
-          lastLogin: true,
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -83,15 +80,12 @@ export async function GET(request: NextRequest) {
     const transformedEmployees = employees.map((emp) => ({
       id: emp.id,
       email: emp.email,
-      name: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email,
-      firstName: emp.firstName,
-      lastName: emp.lastName,
+      name: emp.name || emp.email,
       phone: emp.phone,
       avatar: emp.avatar,
       role: emp.role,
       isActive: emp.isVerified,
       createdAt: emp.createdAt,
-      lastLogin: emp.lastLogin,
     }))
 
     return successResponse(
@@ -113,7 +107,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { email, firstName, lastName, phone, role, password } = body
+    const { email, name, phone, role, password } = body
 
     if (!email || !role) {
       return errorResponse('Email and role are required', 400)
@@ -146,8 +140,7 @@ export async function POST(request: NextRequest) {
     const employee = await prisma.user.create({
       data: {
         email,
-        firstName: firstName || null,
-        lastName: lastName || null,
+        name: name || null,
         phone: phone || null,
         role,
         passwordHash: hashedPassword,
@@ -156,8 +149,7 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
+        name: true,
         role: true,
       },
     })

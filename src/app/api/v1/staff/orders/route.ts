@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       where.OR = [
         { orderNumber: { contains: search, mode: 'insensitive' } },
         { user: { email: { contains: search, mode: 'insensitive' } } },
-        { user: { firstName: { contains: search, mode: 'insensitive' } } },
+        { user: { name: { contains: search, mode: 'insensitive' } } },
         { user: { phone: { contains: search } } },
       ]
     }
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
             select: { method: true, status: true },
           },
           user: {
-            select: { firstName: true, lastName: true, email: true, phone: true },
+            select: { name: true,  email: true, phone: true },
           },
           items: {
             select: {
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
       status: order.status,
       total: Number(order.total),
       customer: {
-        name: `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim() || order.user.email,
+        name: `${order.user.name || ''} ${order. || ''}`.trim() || order.user.email,
         email: order.user.email,
         phone: order.user.phone,
       },

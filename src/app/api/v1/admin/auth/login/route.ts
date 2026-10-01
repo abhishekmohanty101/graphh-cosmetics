@@ -30,16 +30,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if account is active
-    if (!user.isActive) {
+    if (user.isBlocked) {
       return errorResponse('Account is disabled. Contact support.', 403)
     }
 
     // Verify password
-    if (!user.password) {
+    if (!user.passwordHash) {
       return errorResponse('Password not set. Use password reset.', 400)
     }
 
-    const isValidPassword = await compare(password, user.password)
+    const isValidPassword = await compare(password, user.passwordHash)
     if (!isValidPassword) {
       return errorResponse('Invalid credentials', 401)
     }
@@ -70,24 +70,14 @@ export async function POST(request: NextRequest) {
       { expiresIn: '1d' } // 1 day for refresh
     )
 
-    // Update last login
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    })
-
     // Log admin login for audit
     try {
       await prisma.auditLog.create({
         data: {
           userId: user.id,
           action: 'ADMIN_LOGIN',
-          entityType: 'USER',
+          entity: 'USER',
           entityId: user.id,
-          metadata: {
-            ip: request.headers.get('x-forwarded-for') || 'unknown',
-            userAgent: request.headers.get('user-agent') || 'unknown',
-          },
         },
       })
     } catch {

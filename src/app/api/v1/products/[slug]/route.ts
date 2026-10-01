@@ -47,8 +47,8 @@ export async function GET(
             createdAt: true,
             user: {
               select: {
-                firstName: true,
-                lastName: true,
+                name: true,
+                
               },
             },
           },
@@ -105,7 +105,7 @@ export async function GET(
         helpful: r.helpful,
         createdAt: r.createdAt.toISOString(),
         user: {
-          name: `${r.user.firstName} ${r.user.lastName?.charAt(0) || ''}.`,
+          name: `${r.user.name} ${r.?.charAt(0) || ''}.`,
         },
       })),
     }

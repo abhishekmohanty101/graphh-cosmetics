@@ -42,8 +42,8 @@ export async function GET(
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
+        name: true,
+        
         phone: true,
         avatar: true,
         createdAt: true,
@@ -78,9 +78,7 @@ export async function GET(
       customer: {
         id: customer.id,
         email: customer.email,
-        name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim(),
-        firstName: customer.firstName,
-        lastName: customer.lastName,
+        name: customer.name || 'N/A',
         phone: customer.phone,
         avatar: customer.avatar,
         createdAt: customer.createdAt,

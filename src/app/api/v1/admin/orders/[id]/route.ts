@@ -51,8 +51,8 @@ export async function GET(
         user: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
+            name: true,
+            
             email: true,
             phone: true,
             _count: { select: { orders: true } },
@@ -182,10 +182,6 @@ export async function PATCH(
             where: { id: codPayment.id },
             data: { status: 'COMPLETED', paidAt: new Date() },
           })
-          await prisma.order.update({
-            where: { id: order.id },
-            data: { paymentStatus: 'PAID' },
-          })
         }
       }
 
@@ -195,7 +191,7 @@ export async function PATCH(
     const updatedOrder = await prisma.order.findUnique({
       where: { id: order.id },
       include: {
-        shipments: true,
+        shipment: true,
       },
     })
 

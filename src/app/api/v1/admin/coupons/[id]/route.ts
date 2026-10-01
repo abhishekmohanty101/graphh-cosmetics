@@ -46,7 +46,7 @@ export async function GET(
             orderNumber: true,
             total: true,
             createdAt: true,
-            user: { select: { email: true, firstName: true, lastName: true } },
+            user: { select: { email: true, name: true } },
           },
           orderBy: { createdAt: 'desc' },
           take: 10,

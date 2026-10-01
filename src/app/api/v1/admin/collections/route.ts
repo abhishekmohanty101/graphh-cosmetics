@@ -26,9 +26,6 @@ export async function GET(request: NextRequest) {
     const [collections, total] = await Promise.all([
       prisma.collection.findMany({
         where,
-        include: {
-          _count: { select: { products: true } },
-        },
         orderBy: { sortOrder: 'asc' },
         skip,
         take: limit,
@@ -39,7 +36,7 @@ export async function GET(request: NextRequest) {
     return successResponse({
       collections: collections.map((c) => ({
         ...c,
-        productCount: c._count.products,
+        productCount: c.productIds?.length || 0,
       })),
       pagination: createPagination(page, limit, total),
     })
@@ -53,7 +50,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, slug, description, image, isActive = true, sortOrder = 0 } = body
+    const { name, slug, description, image, isActive = true, sortOrder = 0, productIds = [] } = body
 
     if (!name) {
       return errorResponse('Collection name is required', 400)
@@ -78,6 +75,7 @@ export async function POST(request: NextRequest) {
         image,
         isActive,
         sortOrder,
+        productIds,
       },
     })
 

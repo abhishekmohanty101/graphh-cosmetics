@@ -42,11 +42,11 @@ export async function GET(
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
+        name: true,
         phone: true,
         avatar: true,
         isVerified: true,
+        isBlocked: true,
         createdAt: true,
         updatedAt: true,
         addresses: {
@@ -99,12 +99,11 @@ export async function GET(
       customer: {
         id: customer.id,
         email: customer.email,
-        name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim(),
-        firstName: customer.firstName,
-        lastName: customer.lastName,
+        name: customer.name,
         phone: customer.phone,
         avatar: customer.avatar,
         isVerified: customer.isVerified,
+        isBlocked: customer.isBlocked,
         createdAt: customer.createdAt,
         updatedAt: customer.updatedAt,
         addresses: customer.addresses,
@@ -140,7 +139,7 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { isBlocked, notes } = body
+    const { isBlocked } = body
 
     const customer = await prisma.user.findUnique({
       where: { id: params.id },
@@ -155,13 +154,11 @@ export async function PATCH(
       where: { id: params.id },
       data: {
         isBlocked: isBlocked !== undefined ? isBlocked : customer.isBlocked,
-        adminNotes: notes !== undefined ? notes : undefined,
       },
       select: {
         id: true,
         email: true,
-        firstName: true,
-        lastName: true,
+        name: true,
         isBlocked: true,
       },
     })

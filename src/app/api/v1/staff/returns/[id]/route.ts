@@ -41,7 +41,7 @@ export async function GET(
       where: { id: params.id },
       include: {
         user: {
-          select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+          select: { id: true, name: true,  email: true, phone: true },
         },
         items: {
           include: {
@@ -78,7 +78,7 @@ export async function GET(
           subtotal: Number(order.subtotal),
           customer: {
             id: order.user.id,
-            name: `${order.user.firstName || ''} ${order.user.lastName || ''}`.trim(),
+            name: `${order.user.name || ''} ${order. || ''}`.trim(),
             email: order.user.email,
             phone: order.user.phone,
           },
